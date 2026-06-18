@@ -19,6 +19,9 @@
 <use name="DataFormats/PatCandidates"/>
 <use name="DataFormats/ProtonReco"/>
 <use name="DataFormats/TrackReco"/>
+<use name="DataFormats/TrackerCommon"/>
+<use name="DataFormats/SiStripDetId"/>
+<use name="DataFormats/SiPixelDetId"/>
 <use name="FWCore/Framework"/>
 <use name="FWCore/ParameterSet"/>
 <use name="FWCore/ServiceRegistry"/>
