@@ -163,6 +163,10 @@ PATmuonExtendedSimpleTable = simplePATMuonFlatTableProducer.clone(
         innerPt = Var("? innerTrack().isNonnull() && innerTrack().isAvailable() ? innerTrack().pt() : -1", float, doc=""),
         innerEta = Var("? innerTrack().isNonnull() && innerTrack().isAvailable() ? innerTrack().eta() : -5", float, doc=""),
         innerPhi = Var("? innerTrack().isNonnull() && innerTrack().isAvailable() ? innerTrack().phi() : -5", float, doc=""),
+        timeAtIpInOut    = Var("time().timeAtIpInOut",    float, doc="muon time at IP (in-out)"),
+        timeAtIpInOutErr = Var("time().timeAtIpInOutErr", float, doc="error on muon time at IP (in-out)"),
+        time_nDof        = Var("time().nDof",             int,   doc="number of dof for muon timing"),
+        inverseBeta      = Var("inverseBeta()",           float, doc="muon 1/beta from timing"),
     )
 )
 
@@ -199,6 +203,20 @@ dispJetTable = cms.EDProducer("DispJetTableProducer",
     primaryVertex = cms.InputTag("offlineSlimmedPrimaryVertices"),
     secondaryVertex = cms.InputTag("displacedInclusiveSecondaryVertices")
 )
+
+isoTrackDeDxTable = cms.EDProducer("IsoTrackDeDxTableProducer",
+    name                = cms.string("IsoTrack"),
+    finalIsolatedTracks = cms.InputTag("finalIsolatedTracks"),
+    isolatedTracks      = cms.InputTag("isolatedTracks"),
+    dedx                = cms.InputTag("isolatedTracks"),
+    muons               = cms.InputTag("linkedObjects", "muons"),
+)
+
+def add_isoTrackDeDxTables(process):
+    process.isoTrackDeDxTable = isoTrackDeDxTable
+    process.isoTrackDeDxTask  = cms.Task(process.isoTrackDeDxTable)
+    process.nanoTableTaskCommon.add(process.isoTrackDeDxTask)
+    return process
 
 def add_dispJetTables(process):
     # process.load('PhysicsTools.displacedInclusiveVertexing_cff')
@@ -304,6 +322,7 @@ def add_exonanoTables(process):
     process = add_dsamuonTables(process)
     process = add_electronVertexTables(process)
     process = add_dispJetTables(process)
+    process = add_isoTrackDeDxTables(process)
 
     isMC = hasattr(process, "nanoSequenceMC") and process.schedule.contains(process.nanoSequenceMC)
 
