@@ -34,9 +34,93 @@ private:
 
   // Stub — maintainer replaces with real geometry-based edge check.
   // Only dependency is <cmath> (fabs). No EventSetup needed.
+
   static bool IsHitNearEdge(int subdet, uint32_t detId, float localX, float localY) {
-    return false;
+    bool found = false;
+    if (subdet == 1) {
+      if (localX > 0.79 || localX < -0.8) found = true;
+      if (fabs(localY) > 3.2) found = true;
+    } else if (subdet == 2) {
+      if (fabs(localX) > 0.8) found = true;
+      if (fabs(localY) > 3.2) found = true;
+    } else if (subdet == 3) {
+      if (fabs(localX) > 3.05) found = true;
+      if (fabs(localY) > 5.6) found = true;
+    } else if (subdet == 4) {
+      unsigned int ring = (detId >> 9) & 0x3;
+      if (ring == 1) {
+        if (fabs(localY) < 5.5) found = true;
+        if ((localX < 0 && (localY - 7.41f * localX - 28.23f) > 0) ||
+            (localX > 0 && (localY + 7.41f * localX - 28.23f) > 0))
+          found = true;
+      } else if (ring == 2) {
+        if (fabs(localY) < 4.35) found = true;
+        if ((localX < 0 && (localY - 7.63f * localX - 37.2f) > 0) ||
+            (localX > 0 && (localY + 7.47f * localX - 36.49f) > 0))
+          found = true;
+      } else if (ring == 3) {
+        if (localY < -5.5 || localY > 5.45) found = true;
+        if ((localX < 0 && (localY + 12.43f * localX + 44.6f) < 0) ||
+            (localX > 0 && (localY - 12.51f * localX + 44.9f) < 0))
+          found = true;
+      } else {
+        std::cout << "No ring found for TID, check for error\n";
+      }
+    } else if (subdet == 5) {
+      if (fabs(localX) > 4.65) found = true;
+      if (fabs(localY) < 0.25 || fabs(localY) > 9.2) found = true;
+    } else if (subdet == 6) {
+      unsigned int ring = (detId >> 5) & 0x7;
+      if (ring == 1) {
+        if (fabs(localY) > 4.2) found = true;
+        if ((localX < 0 && (localY - 7.49f * localX - 27.65f) > 0) ||
+            (localX > 0 && (localY + 7.51f * localX - 27.68f) > 0))
+          found = true;
+      } else if (ring == 2) {
+        if (fabs(localY) > 4.35) found = true;
+        if ((localX < 0 && (localY - 7.32f * localX - 35.7f) > 0) ||
+            (localX > 0 && (localY + 7.45f * localX - 36.4f) > 0))
+          found = true;
+      } else if (ring == 3) {
+        if (localY < -5.45 || localY > 5.5) found = true;
+        if ((localX < 0 && (localY - 12.62f * localX - 45.24f) > 0) ||
+            (localX > 0 && (localY + 12.46f * localX - 44.67f) > 0))
+          found = true;
+      } else if (ring == 4) {
+        if (fabs(localY) > 5.7) found = true;
+        if ((localX < 0 && (localY - 17.53f * localX - 56.39f) > 0) ||
+            (localX > 0 && (localY + 17.38f * localX - 55.8f) > 0))
+          found = true;
+      } else if (ring == 5) {
+        if (fabs(localY) > 7.3 || (localY > -0.82f && localY < -0.7f) ||
+            (localY > -1.1f && localY < -1.0f))
+          found = true;
+        if ((localX < 0 && (localY - 12.45f * localX - 67.1f) > 0) ||
+            (localX > 0 && (localY + 12.65f * localX - 68.18f) > 0))
+          found = true;
+      } else if (ring == 6) {
+        if (fabs(localY) > 9.1 || (localY > -0.82f && localY < -0.75f) ||
+            (localY > -0.52f && localY < -0.35f))
+          found = true;
+        if ((localX < 0 && (localY - 17.41f * localX - 81.56f) > 0) ||
+            (localX > 0 && (localY + 17.48f * localX - 81.81f) > 0))
+          found = true;
+      } else if (ring == 7) {
+        if (fabs(localY) > 10.15 || (localY > 0.4f && localY < 0.54f) ||
+            (localY > 0.68f && localY < 0.84f))
+          found = true;
+        if ((localX < 0 && (localY + 24.53f * localX + 97.35f) < 0) ||
+            (localX > 0 && (localY - 24.88f * localX - 98.68f) < 0))
+          found = true;
+      } else {
+        std::cout << "No ring found for TEC, check for error\n";
+      }
+    } else {
+      std::cout << "No subdetector found in IsHitNearEdge, check for error\n";
+    }
+    return found;
   }
+
 
   const std::string name_;
   const edm::EDGetTokenT<std::vector<pat::IsolatedTrack>> finalTracksToken_;
