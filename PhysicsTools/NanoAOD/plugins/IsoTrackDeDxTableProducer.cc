@@ -1,6 +1,7 @@
 #include <memory>
 #include <vector>
 #include <cmath>
+#include <limits>
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/global/EDProducer.h"
@@ -22,6 +23,7 @@
 #include "DataFormats/SiStripDetId/interface/SiStripDetId.h"
 #include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
 #include "Geometry/Records/interface/TrackerTopologyRcd.h"
+#include "DataFormats/Math/interface/deltaR.h"
 
 class IsoTrackDeDxTableProducer : public edm::global::EDProducer<> {
 public:
@@ -121,6 +123,35 @@ private:
     return found;
   }
 
+  // Duplicated verbatim from MuonExtendedTableProducer::getPFIso() to avoid a
+  // cross-producer data-product / scheduling-order dependency on PATmuonExtendedTable.
+  static float getPFIso(const pat::Muon& muon) {
+    return (muon.pfIsolationR04().sumChargedHadronPt +
+            std::max(0., muon.pfIsolationR04().sumNeutralHadronEt + muon.pfIsolationR04().sumPhotonEt -
+                             0.5 * muon.pfIsolationR04().sumPUPt)) /
+           muon.pt();
+  }
+
+  // Encodes the analysis-level "GoodMuon" selection (eta, loose ID, PF iso, global,
+  // muon timing / 1-over-beta consistent with a MIP-like candidate).
+  static bool passesGoodMuon(const pat::Muon& mu, float pfIso) {
+    constexpr float kEtaMin = -1.5f, kEtaMax = 1.5f;
+    constexpr float kPFIsoMin = 0.f, kPFIsoMax = 0.15f;
+    constexpr float kTimeMin = 0.f, kTimeMax = 25.f;
+    constexpr float kTimeErrMin = 0.f, kTimeErrMax = 4.f;
+    constexpr float kNDofMin = 8.f;
+    constexpr float kInverseBetaMin = 1.0f;
+
+    if (mu.eta() < kEtaMin || mu.eta() > kEtaMax) return false;
+    if (!mu.isLooseMuon()) return false;
+    if (pfIso < kPFIsoMin || pfIso > kPFIsoMax) return false;
+    if (!mu.isGlobalMuon()) return false;
+    if (mu.time().timeAtIpInOut < kTimeMin || mu.time().timeAtIpInOut > kTimeMax) return false;
+    if (mu.time().timeAtIpInOutErr < kTimeErrMin || mu.time().timeAtIpInOutErr > kTimeErrMax) return false;
+    if (mu.time().nDof < kNDofMin) return false;
+    if (mu.inverseBeta() < kInverseBetaMin) return false;
+    return true;
+  }
 
   const std::string name_;
   const edm::EDGetTokenT<std::vector<pat::IsolatedTrack>> finalTracksToken_;
@@ -166,6 +197,8 @@ void IsoTrackDeDxTableProducer::produce(edm::StreamID,
   std::vector<int>   nPixelDeDxHits(nFinal, 0);
   std::vector<float> alphaMax(nFinal, 0.f);
   std::vector<bool>  hasNearEdge(nFinal, false);
+  std::vector<bool>  isGlobalMuonMatched(nFinal, false);
+  std::vector<bool>  hasGoodMuonMatch(nFinal, false);
 
   // Per-hit columns (accumulated across all tracks)
   std::vector<float> hit_dEdx;
@@ -210,8 +243,25 @@ void IsoTrackDeDxTableProducer::produce(edm::StreamID,
     }
     alphaMax[f] = aMax;
 
-    // --- Per-hit loop (only if dedx ref is valid) ---
-    if (dedxref.isNonnull()) {
+    // --- Nearest global muon match (unbounded search, threshold applied after) ---
+    const pat::Muon* bestMuon = nullptr;
+    float bestDR = std::numeric_limits<float>::max();
+    for (const auto& mu : *muonsH) {
+      if (!mu.isGlobalMuon()) continue;
+      const float dR = reco::deltaR(ft.eta(), ft.phi(), mu.eta(), mu.phi());
+      if (dR < bestDR) {
+        bestDR   = dR;
+        bestMuon = &mu;
+      }
+    }
+    if (bestMuon != nullptr && bestDR < 0.05f) {
+      isGlobalMuonMatched[f] = true;
+      const float pfIso = getPFIso(*bestMuon);
+      hasGoodMuonMatch[f] = passesGoodMuon(*bestMuon, pfIso);
+    }
+
+    // --- Per-hit loop (only for tracks matched to a GoodMuon) ---
+    if (dedxref.isNonnull() && hasGoodMuonMatch[f]) {
       const reco::DeDxHitInfo& dedx = *dedxref;
       const int nHits = static_cast<int>(dedx.size());
 
@@ -274,6 +324,8 @@ void IsoTrackDeDxTableProducer::produce(edm::StreamID,
   trkTab->addColumn<int>  ("nPixelDeDxHits",       nPixelDeDxHits,  "number of pixel dE/dx hits");
   trkTab->addColumn<float>("alphaMax",             alphaMax,        "max 3D opening angle vs tracks/SA muons pT>35 [rad]");
   trkTab->addColumn<bool> ("hasTrackerHitNearEdge",hasNearEdge,     "any dE/dx hit near a sensor edge");
+  trkTab->addColumn<bool> ("isGlobalMuonMatched",  isGlobalMuonMatched, "nearest global muon within dR<0.05");
+  trkTab->addColumn<bool> ("hasGoodMuonMatch",     hasGoodMuonMatch,    "dR-matched global muon passes GoodMuon selection (gates per-hit dE/dx storage)");
 
   // Build and put per-hit table
   const size_t nHitsTotal = hit_dEdx.size();
