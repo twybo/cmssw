@@ -245,6 +245,68 @@ void CustomParticleFactory::addCustomParticle(int pdgCode, double mass, const st
   m_particles.push_back(particle);
 }
 
+void CustomParticleFactory::addTauPrime(double mass, double charge) {
+  double massGeV = mass * CLHEP::GeV;
+  double width = 0.0;
+  int spin = 1;  // spin-1/2, hardcoded: a physics-model fact, not a config knob
+  int parity = +1;
+  int conjugation = 0;
+  int isospin = 0;
+  int isospinZ = 0;
+  int gParity = 0;
+  bool stable = true;
+  double lifetime = -1;
+  G4DecayTable *decaytable = nullptr;
+
+  CustomParticle *tauPrime = new CustomParticle("tauprime",
+                                                massGeV,
+                                                width,
+                                                CLHEP::eplus * charge,
+                                                spin,
+                                                parity,
+                                                conjugation,
+                                                isospin,
+                                                isospinZ,
+                                                gParity,
+                                                "custom",
+                                                1,   // lepton
+                                                0,   // baryon
+                                                17,  // pdgCode
+                                                stable,
+                                                lifetime,
+                                                decaytable);
+  tauPrime->SetCloud(nullptr);
+  tauPrime->SetSpectator(nullptr);
+  m_particles.push_back(tauPrime);
+
+  CustomParticle *antiTauPrime = new CustomParticle("anti_tauprime",
+                                                    massGeV,
+                                                    width,
+                                                    -CLHEP::eplus * charge,
+                                                    spin,
+                                                    parity,
+                                                    conjugation,
+                                                    isospin,
+                                                    isospinZ,
+                                                    gParity,
+                                                    "custom",
+                                                    -1,   // lepton
+                                                    0,    // baryon
+                                                    -17,  // pdgCode
+                                                    stable,
+                                                    lifetime,
+                                                    decaytable);
+  antiTauPrime->SetCloud(nullptr);
+  antiTauPrime->SetSpectator(nullptr);
+  m_particles.push_back(antiTauPrime);
+
+  G4ParticleTable *theParticleTable = G4ParticleTable::GetParticleTable();
+  theParticleTable->FindParticle(17)->SetAntiPDGEncoding(-17);
+
+  edm::LogVerbatim("SimG4CoreCustomPhysics")
+      << "CustomParticleFactory: added tau-prime, mass= " << mass << " GeV, charge= " << charge << " e";
+}
+
 void CustomParticleFactory::getMassTable(std::ifstream *configFile) {
   int pdgId;
   double mass;

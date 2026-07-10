@@ -20,5 +20,9 @@ customPhysicsSetup = cms.PSet(
     mixing = cms.double(1.),
 
     # dark photon
-    dark_factor = cms.double(1.0)
+    dark_factor = cms.double(1.0),
+
+    # tau-prime (PDG 17): mass <= 0 means "not present"
+    TauPrimeMass = cms.untracked.double(-1.0),
+    TauPrimeChargeType = cms.untracked.int32(0)
 )

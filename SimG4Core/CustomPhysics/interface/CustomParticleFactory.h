@@ -15,6 +15,7 @@ public:
   ~CustomParticleFactory() = default;
 
   void loadCustomParticles(const std::string &filePath);
+  void addTauPrime(double mass, double charge);
   const std::vector<G4ParticleDefinition *> &getCustomParticles();
 
 private:
