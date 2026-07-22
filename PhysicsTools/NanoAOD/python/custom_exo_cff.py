@@ -273,7 +273,7 @@ def add_dsamuonTables(process):
     )
 
     process.nanoTableTaskCommon.add(process.dsamuonTask)
-    # process.nanoTableTaskCommon.add(process.dsamuonVertexTask)
+    process.nanoTableTaskCommon.add(process.dsamuonVertexTask)
     process.nanoTableTaskCommon.add(process.patmuonTask)
 
     return process
@@ -318,16 +318,15 @@ def update_genParticleTable(process):
 
 def add_exonanoTables(process):
 
-    # process = add_mdsTables(process)
+    process = add_mdsTables(process)
     process = add_dsamuonTables(process)
-    # when restoring exonano from aod behaviour, also uncomment l:276 (dsa muon vertext task)
-    # process = add_electronVertexTables(process)
-    # process = add_dispJetTables(process)
+    process = add_electronVertexTables(process)
+    process = add_dispJetTables(process)
     process = add_isoTrackDeDxTables(process)
 
     isMC = hasattr(process, "nanoSequenceMC") and process.schedule.contains(process.nanoSequenceMC)
 
-    # process = add_displacedtauCHSTables(process, isMC)
+    process = add_displacedtauCHSTables(process, isMC)
 
     if isMC:
         process = update_genParticleTable(process)
