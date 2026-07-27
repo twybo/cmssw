@@ -204,16 +204,10 @@ dispJetTable = cms.EDProducer("DispJetTableProducer",
     secondaryVertex = cms.InputTag("displacedInclusiveSecondaryVertices")
 )
 
-# DIAGNOSTIC: rows come from the uncleaned isolatedTracks instead of finalIsolatedTracks,
-# to measure how many dE/dx hits the IsolatedTrackCleaner lepton veto removes.
-# Row counts no longer match the IsoTrack table, so the per-track columns must be emitted
-# as a standalone main table under a distinct name rather than as an IsoTrack extension.
-# To revert: name -> "IsoTrack", extension -> True, finalIsolatedTracks -> "finalIsolatedTracks".
 isoTrackDeDxTable = cms.EDProducer("IsoTrackDeDxTableProducer",
-    name                = cms.string("IsoTrackAll"),
-    extension           = cms.bool(False),
-    finalIsolatedTracks = cms.InputTag("isolatedTracks"),
-    # finalIsolatedTracks = cms.InputTag("finalIsolatedTracks"),
+    name                = cms.string("IsoTrack"),
+    extension           = cms.bool(True),
+    finalIsolatedTracks = cms.InputTag("finalIsolatedTracks"),
     isolatedTracks      = cms.InputTag("isolatedTracks"),
     dedx                = cms.InputTag("isolatedTracks"),
     muons               = cms.InputTag("linkedObjects", "muons"),
@@ -223,6 +217,19 @@ def add_isoTrackDeDxTables(process):
     process.isoTrackDeDxTable = isoTrackDeDxTable
     process.isoTrackDeDxTask  = cms.Task(process.isoTrackDeDxTable)
     process.nanoTableTaskCommon.add(process.isoTrackDeDxTask)
+    return process
+
+muonDeDxTable = cms.EDProducer("MuonDeDxTableProducer",
+    name           = cms.string("Muon"),
+    muons          = cms.InputTag("linkedObjects", "muons"),
+    isolatedTracks = cms.InputTag("isolatedTracks"),
+    dedx           = cms.InputTag("isolatedTracks"),
+)
+
+def add_muonDeDxTables(process):
+    process.muonDeDxTable = muonDeDxTable
+    process.muonDeDxTask  = cms.Task(process.muonDeDxTable)
+    process.nanoTableTaskCommon.add(process.muonDeDxTask)
     return process
 
 def add_dispJetTables(process):
@@ -330,6 +337,7 @@ def add_exonanoTables(process):
     process = add_electronVertexTables(process)
     process = add_dispJetTables(process)
     process = add_isoTrackDeDxTables(process)
+    process = add_muonDeDxTables(process)
 
     isMC = hasattr(process, "nanoSequenceMC") and process.schedule.contains(process.nanoSequenceMC)
 
