@@ -204,9 +204,16 @@ dispJetTable = cms.EDProducer("DispJetTableProducer",
     secondaryVertex = cms.InputTag("displacedInclusiveSecondaryVertices")
 )
 
+# DIAGNOSTIC: rows come from the uncleaned isolatedTracks instead of finalIsolatedTracks,
+# to measure how many dE/dx hits the IsolatedTrackCleaner lepton veto removes.
+# Row counts no longer match the IsoTrack table, so the per-track columns must be emitted
+# as a standalone main table under a distinct name rather than as an IsoTrack extension.
+# To revert: name -> "IsoTrack", extension -> True, finalIsolatedTracks -> "finalIsolatedTracks".
 isoTrackDeDxTable = cms.EDProducer("IsoTrackDeDxTableProducer",
-    name                = cms.string("IsoTrack"),
-    finalIsolatedTracks = cms.InputTag("finalIsolatedTracks"),
+    name                = cms.string("IsoTrackAll"),
+    extension           = cms.bool(False),
+    finalIsolatedTracks = cms.InputTag("isolatedTracks"),
+    # finalIsolatedTracks = cms.InputTag("finalIsolatedTracks"),
     isolatedTracks      = cms.InputTag("isolatedTracks"),
     dedx                = cms.InputTag("isolatedTracks"),
     muons               = cms.InputTag("linkedObjects", "muons"),

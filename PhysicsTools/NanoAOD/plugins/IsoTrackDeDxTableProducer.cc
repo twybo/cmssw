@@ -154,6 +154,7 @@ private:
   }
 
   const std::string name_;
+  const bool extension_;
   const edm::EDGetTokenT<std::vector<pat::IsolatedTrack>> finalTracksToken_;
   const edm::EDGetTokenT<std::vector<pat::IsolatedTrack>> tracksToken_;
   const edm::EDGetTokenT<reco::DeDxHitInfoAss>            dedxToken_;
@@ -163,6 +164,7 @@ private:
 
 IsoTrackDeDxTableProducer::IsoTrackDeDxTableProducer(const edm::ParameterSet& iConfig)
     : name_(iConfig.getParameter<std::string>("name")),
+      extension_(iConfig.getParameter<bool>("extension")),
       finalTracksToken_(consumes<std::vector<pat::IsolatedTrack>>(
           iConfig.getParameter<edm::InputTag>("finalIsolatedTracks"))),
       tracksToken_(consumes<std::vector<pat::IsolatedTrack>>(
@@ -318,7 +320,7 @@ void IsoTrackDeDxTableProducer::produce(edm::StreamID,
   }
 
   // Build and put IsoTrack extension table
-  auto trkTab = std::make_unique<nanoaod::FlatTable>(nFinal, name_, false, /*extension=*/true);
+  auto trkTab = std::make_unique<nanoaod::FlatTable>(nFinal, name_, false, /*extension=*/extension_);
   trkTab->addColumn<int>  ("nDeDxHits",            nDeDxHits,       "number of dE/dx hits");
   trkTab->addColumn<int>  ("deDxHitFirstIdx",      deDxHitFirstIdx, "first row in IsoTrackDeDxHits (-1 if none)");
   trkTab->addColumn<int>  ("nPixelDeDxHits",       nPixelDeDxHits,  "number of pixel dE/dx hits");
@@ -341,6 +343,10 @@ void IsoTrackDeDxTableProducer::produce(edm::StreamID,
 void IsoTrackDeDxTableProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
   desc.add<std::string>("name", "IsoTrack")->setComment("name of the IsoTrack FlatTable (also prefixes the hit table)");
+  desc.add<bool>("extension", true)
+      ->setComment(
+          "true: per-track columns extend an existing table named 'name' (row count must match it exactly); "
+          "false: emit them as a standalone main table (requires 'name' not collide with an existing main table)");
   desc.add<edm::InputTag>("finalIsolatedTracks", edm::InputTag("finalIsolatedTracks"))->setComment("cleaned isolated track collection (row identity/order)");
   desc.add<edm::InputTag>("isolatedTracks",      edm::InputTag("isolatedTracks"))     ->setComment("full isolated track collection (association key + alphaMax)");
   desc.add<edm::InputTag>("dedx",                edm::InputTag("isolatedTracks"))     ->setComment("DeDxHitInfo association product (same label as isolatedTracks)");
