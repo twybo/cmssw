@@ -204,20 +204,20 @@ dispJetTable = cms.EDProducer("DispJetTableProducer",
     secondaryVertex = cms.InputTag("displacedInclusiveSecondaryVertices")
 )
 
-isoTrackDeDxTable = cms.EDProducer("IsoTrackDeDxTableProducer",
-    name                = cms.string("IsoTrack"),
-    extension           = cms.bool(True),
-    finalIsolatedTracks = cms.InputTag("finalIsolatedTracks"),
-    isolatedTracks      = cms.InputTag("isolatedTracks"),
-    dedx                = cms.InputTag("isolatedTracks"),
-    muons               = cms.InputTag("linkedObjects", "muons"),
-)
+# isoTrackDeDxTable = cms.EDProducer("IsoTrackDeDxTableProducer",
+#     name                = cms.string("IsoTrack"),
+#     extension           = cms.bool(True),
+#     finalIsolatedTracks = cms.InputTag("finalIsolatedTracks"),
+#     isolatedTracks      = cms.InputTag("isolatedTracks"),
+#     dedx                = cms.InputTag("isolatedTracks"),
+#     muons               = cms.InputTag("linkedObjects", "muons"),
+# )
 
-def add_isoTrackDeDxTables(process):
-    process.isoTrackDeDxTable = isoTrackDeDxTable
-    process.isoTrackDeDxTask  = cms.Task(process.isoTrackDeDxTable)
-    process.nanoTableTaskCommon.add(process.isoTrackDeDxTask)
-    return process
+# def add_isoTrackDeDxTables(process):
+#     process.isoTrackDeDxTable = isoTrackDeDxTable
+#     process.isoTrackDeDxTask  = cms.Task(process.isoTrackDeDxTable)
+#     process.nanoTableTaskCommon.add(process.isoTrackDeDxTask)
+#     return process
 
 muonDeDxTable = cms.EDProducer("MuonDeDxTableProducer",
     name           = cms.string("Muon"),
@@ -336,7 +336,6 @@ def add_exonanoTables(process):
     process = add_dsamuonTables(process)
     process = add_electronVertexTables(process)
     process = add_dispJetTables(process)
-    process = add_isoTrackDeDxTables(process)
     process = add_muonDeDxTables(process)
 
     isMC = hasattr(process, "nanoSequenceMC") and process.schedule.contains(process.nanoSequenceMC)
