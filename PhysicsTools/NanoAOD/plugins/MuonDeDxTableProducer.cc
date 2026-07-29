@@ -47,8 +47,6 @@ public:
 private:
   void produce(edm::StreamID, edm::Event&, const edm::EventSetup&) const override;
 
-  // Duplicated from IsHitNearEdge in IsoTrackDeDxTableProducer.cc, with the
-  // hand-rolled TID/TEC ring bit masks replaced by TrackerTopology accessors.
   static bool IsHitNearEdge(int subdet, const TrackerTopology& tTopo, DetId detId, float localX, float localY) {
     bool found = false;
     if (subdet == 1) {
@@ -135,8 +133,6 @@ private:
     return found;
   }
 
-  // Duplicated verbatim from IsoTrackDeDxTableProducer::getPFIso() (itself duplicated
-  // from MuonExtendedTableProducer::getPFIso()) to avoid a cross-producer dependency.
   static float getPFIso(const pat::Muon& muon) {
     return (muon.pfIsolationR04().sumChargedHadronPt +
             std::max(0., muon.pfIsolationR04().sumNeutralHadronEt + muon.pfIsolationR04().sumPhotonEt -
@@ -144,7 +140,6 @@ private:
            muon.pt();
   }
 
-  // Duplicated verbatim from IsoTrackDeDxTableProducer::passesGoodMuon().
   static bool passesGoodMuon(const pat::Muon& mu, float pfIso) {
     constexpr float kEtaMin = -1.5f, kEtaMax = 1.5f;
     constexpr float kPFIsoMin = 0.f, kPFIsoMax = 0.15f;
