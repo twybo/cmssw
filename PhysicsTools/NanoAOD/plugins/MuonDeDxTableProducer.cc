@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <memory>
 #include <vector>
 #include <cmath>
@@ -36,6 +37,196 @@ namespace {
       return std::hash<size_t>()(h1) ^ (std::hash<unsigned int>()(p.second) << 1);
     }
   };
+
+  // DeDxHitInfo stores the pixel cluster charge in electrons and the strip cluster charge in ADC counts, so the
+  // two subdetectors need different conversions to MeV. These reproduce the RECO defaults MeVperADCPixel and
+  // MeVperADCStrip (= 3.61e-06 * 265) in RecoTracker/DeDx/python/dedxEstimators_cff.py, which is where the
+  // DeDxHitInfo collection read here is produced. They are neither an event product nor an EventSetup record, so
+  // they have to be repeated; keep them in sync with that file.
+
+  // Mean energy needed to create one electron-hole pair in silicon.
+  constexpr float kMeVPerElectronHolePair = 3.61e-06f;
+  // Strip readout gain: electrons per ADC count.
+  constexpr float kElectronsPerADCStrip = 265.f;
+
+  // Largest hit count representable in the uint8_t counter columns.
+  constexpr size_t kMaxHitCount = std::numeric_limits<uint8_t>::max();
+
+  bool isPixel(int subdet) {
+    return subdet == PixelSubdetector::PixelBarrel || subdet == PixelSubdetector::PixelEndcap;
+  }
+
+  // Sensor-edge fiducial cuts, following EXO-19-006.
+
+  bool isNearEdgeBPix(float localX, float localY) {
+    bool found = false;
+    if (localX > 0.79 || localX < -0.8)
+      found = true;
+    if (std::abs(localY) > 3.2)
+      found = true;
+    return found;
+  }
+
+  bool isNearEdgeFPix(float localX, float localY) {
+    bool found = false;
+    if (std::abs(localX) > 0.8)
+      found = true;
+    if (std::abs(localY) > 3.2)
+      found = true;
+    return found;
+  }
+
+  bool isNearEdgeTIB(float localX, float localY) {
+    bool found = false;
+    if (std::abs(localX) > 3.05)
+      found = true;
+    if (std::abs(localY) > 5.6)
+      found = true;
+    return found;
+  }
+
+  bool isNearEdgeTID(unsigned int ring, float localX, float localY) {
+    bool found = false;
+    if (ring == 1) {
+      if (std::abs(localY) < 5.5)
+        found = true;
+      if ((localX < 0 && (localY - 7.41f * localX - 28.23f) > 0) ||
+          (localX > 0 && (localY + 7.41f * localX - 28.23f) > 0))
+        found = true;
+    } else if (ring == 2) {
+      if (std::abs(localY) < 4.35)
+        found = true;
+      if ((localX < 0 && (localY - 7.63f * localX - 37.2f) > 0) ||
+          (localX > 0 && (localY + 7.47f * localX - 36.49f) > 0))
+        found = true;
+    } else if (ring == 3) {
+      if (localY < -5.5 || localY > 5.45)
+        found = true;
+      if ((localX < 0 && (localY + 12.43f * localX + 44.6f) < 0) ||
+          (localX > 0 && (localY - 12.51f * localX + 44.9f) < 0))
+        found = true;
+    } else {
+      edm::LogWarning("MuonDeDxTableProducer") << "No ring found for TID, check for error";
+    }
+    return found;
+  }
+
+  bool isNearEdgeTOB(float localX, float localY) {
+    bool found = false;
+    if (std::abs(localX) > 4.65)
+      found = true;
+    if (std::abs(localY) < 0.25 || std::abs(localY) > 9.2)
+      found = true;
+    return found;
+  }
+
+  bool isNearEdgeTEC(unsigned int ring, float localX, float localY) {
+    bool found = false;
+    if (ring == 1) {
+      if (std::abs(localY) > 4.2)
+        found = true;
+      if ((localX < 0 && (localY - 7.49f * localX - 27.65f) > 0) ||
+          (localX > 0 && (localY + 7.51f * localX - 27.68f) > 0))
+        found = true;
+    } else if (ring == 2) {
+      if (std::abs(localY) > 4.35)
+        found = true;
+      if ((localX < 0 && (localY - 7.32f * localX - 35.7f) > 0) ||
+          (localX > 0 && (localY + 7.45f * localX - 36.4f) > 0))
+        found = true;
+    } else if (ring == 3) {
+      if (localY < -5.45 || localY > 5.5)
+        found = true;
+      if ((localX < 0 && (localY - 12.62f * localX - 45.24f) > 0) ||
+          (localX > 0 && (localY + 12.46f * localX - 44.67f) > 0))
+        found = true;
+    } else if (ring == 4) {
+      if (std::abs(localY) > 5.7)
+        found = true;
+      if ((localX < 0 && (localY - 17.53f * localX - 56.39f) > 0) ||
+          (localX > 0 && (localY + 17.38f * localX - 55.8f) > 0))
+        found = true;
+    } else if (ring == 5) {
+      if (std::abs(localY) > 7.3 || (localY > -0.82f && localY < -0.7f) || (localY > -1.1f && localY < -1.0f))
+        found = true;
+      if ((localX < 0 && (localY - 12.45f * localX - 67.1f) > 0) ||
+          (localX > 0 && (localY + 12.65f * localX - 68.18f) > 0))
+        found = true;
+    } else if (ring == 6) {
+      if (std::abs(localY) > 9.1 || (localY > -0.82f && localY < -0.75f) || (localY > -0.52f && localY < -0.35f))
+        found = true;
+      if ((localX < 0 && (localY - 17.41f * localX - 81.56f) > 0) ||
+          (localX > 0 && (localY + 17.48f * localX - 81.81f) > 0))
+        found = true;
+    } else if (ring == 7) {
+      if (std::abs(localY) > 10.15 || (localY > 0.4f && localY < 0.54f) || (localY > 0.68f && localY < 0.84f))
+        found = true;
+      if ((localX < 0 && (localY + 24.53f * localX + 97.35f) < 0) ||
+          (localX > 0 && (localY - 24.88f * localX - 98.68f) < 0))
+        found = true;
+    } else {
+      edm::LogWarning("MuonDeDxTableProducer") << "No ring found for TEC, check for error";
+    }
+    return found;
+  }
+
+  // DetId::subdetId() in the tracker:
+  //   1 = BPix, 2 = FPix, 3 = TIB, 4 = TID, 5 = TOB, 6 = TEC
+  bool isHitNearEdge(const TrackerTopology& tTopo, DetId detId, float localX, float localY) {
+    switch (detId.subdetId()) {
+      case PixelSubdetector::PixelBarrel:
+        return isNearEdgeBPix(localX, localY);
+      case PixelSubdetector::PixelEndcap:
+        return isNearEdgeFPix(localX, localY);
+      case SiStripDetId::TIB:
+        return isNearEdgeTIB(localX, localY);
+      case SiStripDetId::TID:
+        return isNearEdgeTID(tTopo.tidRing(detId), localX, localY);
+      case SiStripDetId::TOB:
+        return isNearEdgeTOB(localX, localY);
+      case SiStripDetId::TEC:
+        return isNearEdgeTEC(tTopo.tecRing(detId), localX, localY);
+      default:
+        edm::LogWarning("MuonDeDxTableProducer") << "No subdetector found in isHitNearEdge, check for error";
+        return false;
+    }
+  }
+
+  float pfRelIso04(const pat::Muon& muon) {
+    if (muon.pt() <= 0.f)
+      return std::numeric_limits<float>::max();
+    return (muon.pfIsolationR04().sumChargedHadronPt +
+            std::max(0.f, muon.pfIsolationR04().sumNeutralHadronEt + muon.pfIsolationR04().sumPhotonEt -
+                              0.5f * muon.pfIsolationR04().sumPUPt)) /
+           muon.pt();
+  }
+
+  bool passesGoodMuon(const pat::Muon& mu, float pfIso) {
+    constexpr float kEtaMin = -1.5f, kEtaMax = 1.5f;
+    constexpr float kPFIsoMin = 0.f, kPFIsoMax = 0.15f;
+    constexpr float kTimeMin = 0.f, kTimeMax = 25.f;
+    constexpr float kTimeErrMin = 0.f, kTimeErrMax = 4.f;
+    constexpr float kNDofMin = 8.f;
+    constexpr float kInverseBetaMin = 1.0f;
+
+    if (mu.eta() < kEtaMin || mu.eta() > kEtaMax)
+      return false;
+    if (!mu.isLooseMuon())
+      return false;
+    if (pfIso < kPFIsoMin || pfIso > kPFIsoMax)
+      return false;
+    if (!mu.isGlobalMuon())
+      return false;
+    if (mu.time().timeAtIpInOut < kTimeMin || mu.time().timeAtIpInOut > kTimeMax)
+      return false;
+    if (mu.time().timeAtIpInOutErr < kTimeErrMin || mu.time().timeAtIpInOutErr > kTimeErrMax)
+      return false;
+    if (mu.time().nDof < kNDofMin)
+      return false;
+    if (mu.inverseBeta() < kInverseBetaMin)
+      return false;
+    return true;
+  }
 }  // namespace
 
 class MuonDeDxTableProducer : public edm::global::EDProducer<> {
@@ -47,139 +238,24 @@ public:
 private:
   void produce(edm::StreamID, edm::Event&, const edm::EventSetup&) const override;
 
-  static bool IsHitNearEdge(int subdet, const TrackerTopology& tTopo, DetId detId, float localX, float localY) {
-    bool found = false;
-    if (subdet == 1) {
-      if (localX > 0.79 || localX < -0.8) found = true;
-      if (fabs(localY) > 3.2) found = true;
-    } else if (subdet == 2) {
-      if (fabs(localX) > 0.8) found = true;
-      if (fabs(localY) > 3.2) found = true;
-    } else if (subdet == 3) {
-      if (fabs(localX) > 3.05) found = true;
-      if (fabs(localY) > 5.6) found = true;
-    } else if (subdet == 4) {
-      unsigned int ring = tTopo.tidRing(detId);
-      if (ring == 1) {
-        if (fabs(localY) < 5.5) found = true;
-        if ((localX < 0 && (localY - 7.41f * localX - 28.23f) > 0) ||
-            (localX > 0 && (localY + 7.41f * localX - 28.23f) > 0))
-          found = true;
-      } else if (ring == 2) {
-        if (fabs(localY) < 4.35) found = true;
-        if ((localX < 0 && (localY - 7.63f * localX - 37.2f) > 0) ||
-            (localX > 0 && (localY + 7.47f * localX - 36.49f) > 0))
-          found = true;
-      } else if (ring == 3) {
-        if (localY < -5.5 || localY > 5.45) found = true;
-        if ((localX < 0 && (localY + 12.43f * localX + 44.6f) < 0) ||
-            (localX > 0 && (localY - 12.51f * localX + 44.9f) < 0))
-          found = true;
-      } else {
-        edm::LogWarning("MuonDeDxTableProducer") << "No ring found for TID, check for error";
-      }
-    } else if (subdet == 5) {
-      if (fabs(localX) > 4.65) found = true;
-      if (fabs(localY) < 0.25 || fabs(localY) > 9.2) found = true;
-    } else if (subdet == 6) {
-      unsigned int ring = tTopo.tecRing(detId);
-      if (ring == 1) {
-        if (fabs(localY) > 4.2) found = true;
-        if ((localX < 0 && (localY - 7.49f * localX - 27.65f) > 0) ||
-            (localX > 0 && (localY + 7.51f * localX - 27.68f) > 0))
-          found = true;
-      } else if (ring == 2) {
-        if (fabs(localY) > 4.35) found = true;
-        if ((localX < 0 && (localY - 7.32f * localX - 35.7f) > 0) ||
-            (localX > 0 && (localY + 7.45f * localX - 36.4f) > 0))
-          found = true;
-      } else if (ring == 3) {
-        if (localY < -5.45 || localY > 5.5) found = true;
-        if ((localX < 0 && (localY - 12.62f * localX - 45.24f) > 0) ||
-            (localX > 0 && (localY + 12.46f * localX - 44.67f) > 0))
-          found = true;
-      } else if (ring == 4) {
-        if (fabs(localY) > 5.7) found = true;
-        if ((localX < 0 && (localY - 17.53f * localX - 56.39f) > 0) ||
-            (localX > 0 && (localY + 17.38f * localX - 55.8f) > 0))
-          found = true;
-      } else if (ring == 5) {
-        if (fabs(localY) > 7.3 || (localY > -0.82f && localY < -0.7f) ||
-            (localY > -1.1f && localY < -1.0f))
-          found = true;
-        if ((localX < 0 && (localY - 12.45f * localX - 67.1f) > 0) ||
-            (localX > 0 && (localY + 12.65f * localX - 68.18f) > 0))
-          found = true;
-      } else if (ring == 6) {
-        if (fabs(localY) > 9.1 || (localY > -0.82f && localY < -0.75f) ||
-            (localY > -0.52f && localY < -0.35f))
-          found = true;
-        if ((localX < 0 && (localY - 17.41f * localX - 81.56f) > 0) ||
-            (localX > 0 && (localY + 17.48f * localX - 81.81f) > 0))
-          found = true;
-      } else if (ring == 7) {
-        if (fabs(localY) > 10.15 || (localY > 0.4f && localY < 0.54f) ||
-            (localY > 0.68f && localY < 0.84f))
-          found = true;
-        if ((localX < 0 && (localY + 24.53f * localX + 97.35f) < 0) ||
-            (localX > 0 && (localY - 24.88f * localX - 98.68f) < 0))
-          found = true;
-      } else {
-        edm::LogWarning("MuonDeDxTableProducer") << "No ring found for TEC, check for error";
-      }
-    } else {
-      edm::LogWarning("MuonDeDxTableProducer") << "No subdetector found in IsHitNearEdge, check for error";
-    }
-    return found;
-  }
-
-  static float getPFIso(const pat::Muon& muon) {
-    return (muon.pfIsolationR04().sumChargedHadronPt +
-            std::max(0., muon.pfIsolationR04().sumNeutralHadronEt + muon.pfIsolationR04().sumPhotonEt -
-                             0.5 * muon.pfIsolationR04().sumPUPt)) /
-           muon.pt();
-  }
-
-  static bool passesGoodMuon(const pat::Muon& mu, float pfIso) {
-    constexpr float kEtaMin = -1.5f, kEtaMax = 1.5f;
-    constexpr float kPFIsoMin = 0.f, kPFIsoMax = 0.15f;
-    constexpr float kTimeMin = 0.f, kTimeMax = 25.f;
-    constexpr float kTimeErrMin = 0.f, kTimeErrMax = 4.f;
-    constexpr float kNDofMin = 8.f;
-    constexpr float kInverseBetaMin = 1.0f;
-
-    if (mu.eta() < kEtaMin || mu.eta() > kEtaMax) return false;
-    if (!mu.isLooseMuon()) return false;
-    if (pfIso < kPFIsoMin || pfIso > kPFIsoMax) return false;
-    if (!mu.isGlobalMuon()) return false;
-    if (mu.time().timeAtIpInOut < kTimeMin || mu.time().timeAtIpInOut > kTimeMax) return false;
-    if (mu.time().timeAtIpInOutErr < kTimeErrMin || mu.time().timeAtIpInOutErr > kTimeErrMax) return false;
-    if (mu.time().nDof < kNDofMin) return false;
-    if (mu.inverseBeta() < kInverseBetaMin) return false;
-    return true;
-  }
-
   const std::string name_;
-  const edm::EDGetTokenT<std::vector<pat::Muon>>          muonsToken_;
+  const edm::EDGetTokenT<std::vector<pat::Muon>> muonsToken_;
   const edm::EDGetTokenT<std::vector<pat::IsolatedTrack>> isoTracksToken_;
-  const edm::EDGetTokenT<reco::DeDxHitInfoAss>            dedxToken_;
+  const edm::EDGetTokenT<reco::DeDxHitInfoAss> dedxToken_;
   const edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> trackerTopoToken_;
 };
 
 MuonDeDxTableProducer::MuonDeDxTableProducer(const edm::ParameterSet& iConfig)
     : name_(iConfig.getParameter<std::string>("name")),
       muonsToken_(consumes<std::vector<pat::Muon>>(iConfig.getParameter<edm::InputTag>("muons"))),
-      isoTracksToken_(consumes<std::vector<pat::IsolatedTrack>>(
-          iConfig.getParameter<edm::InputTag>("isolatedTracks"))),
+      isoTracksToken_(consumes<std::vector<pat::IsolatedTrack>>(iConfig.getParameter<edm::InputTag>("isolatedTracks"))),
       dedxToken_(consumes<reco::DeDxHitInfoAss>(iConfig.getParameter<edm::InputTag>("dedx"))),
       trackerTopoToken_(esConsumes()) {
   produces<nanoaod::FlatTable>(name_);
   produces<nanoaod::FlatTable>(name_ + "DeDxHits");
 }
 
-void MuonDeDxTableProducer::produce(edm::StreamID,
-                                     edm::Event& iEvent,
-                                     const edm::EventSetup& iSetup) const {
+void MuonDeDxTableProducer::produce(edm::StreamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
   edm::Handle<std::vector<pat::Muon>> muonsH;
   iEvent.getByToken(muonsToken_, muonsH);
   edm::Handle<std::vector<pat::IsolatedTrack>> isoTracksH;
@@ -203,111 +279,119 @@ void MuonDeDxTableProducer::produce(edm::StreamID,
   const size_t nMuons = muonsH->size();
 
   // Per-muon extension columns
-  std::vector<int>  nDeDxHits(nMuons, 0);
-  std::vector<int>  deDxHitFirstIdx(nMuons, -1);
-  std::vector<int>  nPixelDeDxHits(nMuons, 0);
+  std::vector<uint8_t> nDeDxHits(nMuons, 0);
+  std::vector<uint8_t> nPixelDeDxHits(nMuons, 0);
   std::vector<bool> hasNearEdge(nMuons, false);
-  std::vector<int>  isoTrackIdx(nMuons, -1);
 
   // Per-hit columns (accumulated across all muons)
-  std::vector<float> hit_dEdx;
-  std::vector<int>   hit_layerIndex;
-  std::vector<int>   hit_detId;
+  std::vector<int16_t> hitMuonIdx;
+  std::vector<float> hitDEdx;
+  std::vector<uint8_t> hitLayer;
+  std::vector<uint32_t> hitDetId;
 
   for (size_t i = 0; i < nMuons; ++i) {
     const pat::Muon& mu = (*muonsH)[i];
 
-    const float pfIso = getPFIso(mu);
-    if (!passesGoodMuon(mu, pfIso)) continue;
+    const float pfIso = pfRelIso04(mu);
+    if (!passesGoodMuon(mu, pfIso))
+      continue;
 
     size_t matchedIdx = std::numeric_limits<size_t>::max();
     for (size_t k = 0; k < mu.numberOfSourceCandidatePtrs(); ++k) {
       const reco::CandidatePtr ptr = mu.sourceCandidatePtr(k);
-      if (ptr.isNull()) continue;
+      if (ptr.isNull())
+        continue;
       auto it = candToIsoIdx.find({ptr.id(), ptr.key()});
       if (it != candToIsoIdx.end()) {
         matchedIdx = it->second;
         break;
       }
     }
-
-    if (matchedIdx == std::numeric_limits<size_t>::max()) {
-      edm::LogWarning("MuonDeDxTableProducer")
-          << "GoodMuon[" << i << "] (pt=" << mu.pt() << ", eta=" << mu.eta()
-          << ") had no matching isolatedTracks entry — emitting defaults";
+    if (matchedIdx == std::numeric_limits<size_t>::max())
       continue;
-    }
 
-    isoTrackIdx[i] = static_cast<int>(matchedIdx);
-
-    const reco::DeDxHitInfoRef dedxref =
-        (*dedxH)[edm::Ref<std::vector<pat::IsolatedTrack>>(isoTracksH, matchedIdx)];
-    if (dedxref.isNull()) continue;
+    const reco::DeDxHitInfoRef dedxref = (*dedxH)[edm::Ref<std::vector<pat::IsolatedTrack>>(isoTracksH, matchedIdx)];
+    if (dedxref.isNull())
+      continue;
 
     const reco::DeDxHitInfo& dedx = *dedxref;
-    const int nHits = static_cast<int>(dedx.size());
+    // The hit counts saturate rather than wrap: a track cannot reach kMaxHitCount tracker hits, but a silent
+    // wrap-around would be indistinguishable from a genuine low count if that ever changed.
+    nDeDxHits[i] = static_cast<uint8_t>(std::min<size_t>(dedx.size(), kMaxHitCount));
 
-    deDxHitFirstIdx[i] = static_cast<int>(hit_dEdx.size());
-    nDeDxHits[i]       = nHits;
-
-    int nPixel = 0;
+    size_t nPixel = 0;
     bool nearEdge = false;
 
     for (size_t h = 0; h < dedx.size(); ++h) {
       const DetId dedxId = dedx.detId(h);
-      const float localX = dedx.pos(h).x();  // transient — not stored
-      const float localY = dedx.pos(h).y();  // transient — not stored
-      const int   subdet = dedxId.subdetId();
+      const float localX = dedx.pos(h).x();
+      const float localY = dedx.pos(h).y();
+      const int subdet = dedxId.subdetId();
 
-      // Charge conversion matching legacy ECPTreeMaker exactly
       float charge;
-      if (subdet < 3) {  // pixel (PXB=1, PXF=2)
-        charge = 3.61e-06f * dedx.charge(h);
+      if (isPixel(subdet)) {
+        charge = kMeVPerElectronHolePair * dedx.charge(h);
         ++nPixel;
-      } else {  // strip
-        charge = 3.61e-06f * 265.f * dedx.charge(h);
+      } else {
+        charge = kMeVPerElectronHolePair * kElectronsPerADCStrip * dedx.charge(h);
       }
-      hit_dEdx.push_back(charge / dedx.pathlength(h));
+      hitDEdx.push_back(charge / dedx.pathlength(h));
+      hitMuonIdx.push_back(static_cast<int16_t>(i));
 
-      // Layer index
-      int layer = -1;
-      if (subdet < 3) {
-        if (subdet == PixelSubdetector::PixelBarrel) layer = tTopo.pxbLayer(dedxId);
-        else if (subdet == PixelSubdetector::PixelEndcap) layer = tTopo.pxfDisk(dedxId);
+      // Layer/disk/wheel index; 0 = unknown.
+      uint8_t layer = 0;
+      if (isPixel(subdet)) {
+        if (subdet == PixelSubdetector::PixelBarrel)
+          layer = static_cast<uint8_t>(tTopo.pxbLayer(dedxId));
+        else
+          layer = static_cast<uint8_t>(tTopo.pxfDisk(dedxId));
       } else {
         switch (SiStripDetId(dedxId).subDetector()) {
-          case SiStripDetId::TIB: layer = tTopo.tibLayer(dedxId); break;
-          case SiStripDetId::TID: layer = tTopo.tidWheel(dedxId); break;
-          case SiStripDetId::TOB: layer = tTopo.tobLayer(dedxId); break;
-          case SiStripDetId::TEC: layer = tTopo.tecWheel(dedxId); break;
-          default: layer = -1;
+          case SiStripDetId::TIB:
+            layer = static_cast<uint8_t>(tTopo.tibLayer(dedxId));
+            break;
+          case SiStripDetId::TID:
+            layer = static_cast<uint8_t>(tTopo.tidWheel(dedxId));
+            break;
+          case SiStripDetId::TOB:
+            layer = static_cast<uint8_t>(tTopo.tobLayer(dedxId));
+            break;
+          case SiStripDetId::TEC:
+            layer = static_cast<uint8_t>(tTopo.tecWheel(dedxId));
+            break;
+          default:
+            layer = 0;
         }
       }
-      hit_layerIndex.push_back(layer);
-      hit_detId.push_back(static_cast<int>(dedxId.rawId()));
+      hitLayer.push_back(layer);
+      hitDetId.push_back(dedxId.rawId());
 
       // Edge flag: short-circuit once true
-      if (!nearEdge && IsHitNearEdge(subdet, tTopo, dedxId, localX, localY)) nearEdge = true;
+      if (!nearEdge && isHitNearEdge(tTopo, dedxId, localX, localY))
+        nearEdge = true;
     }
 
-    nPixelDeDxHits[i] = nPixel;
-    hasNearEdge[i]    = nearEdge;
+    nPixelDeDxHits[i] = static_cast<uint8_t>(std::min<size_t>(nPixel, kMaxHitCount));
+    hasNearEdge[i] = nearEdge;
   }
 
   // Build and put Muon extension table
   auto muTab = std::make_unique<nanoaod::FlatTable>(nMuons, name_, false, /*extension=*/true);
-  muTab->addColumn<int>("nDeDxHits", nDeDxHits, "number of dE/dx hits");
-  muTab->addColumn<int>("deDxHitFirstIdx", deDxHitFirstIdx, "first row in MuonDeDxHits (-1 if none)");
-  muTab->addColumn<int>("nPixelDeDxHits", nPixelDeDxHits, "number of pixel dE/dx hits");
-  muTab->addColumn<bool>("hasTrackerHitNearEdge", hasNearEdge, "any dE/dx hit near a sensor edge");
-  muTab->addColumn<int>("isoTrackIdx", isoTrackIdx, "matched isolatedTracks index, -1 if none (debug)");
+  muTab->addColumn<uint8_t>("nDeDxHits", nDeDxHits, "number of dE/dx hits, 0 if none were evaluated");
+  muTab->addColumn<uint8_t>("nPixelDeDxHits", nPixelDeDxHits, "number of pixel dE/dx hits");
+  muTab->addColumn<bool>("hasTrackerHitNearEdge",
+                         hasNearEdge,
+                         "any dE/dx hit near a sensor edge; also false when no hit was evaluated (muon outside the "
+                         "producer selection, no matching isolatedTracks entry, or no DeDxHitInfo), so read it "
+                         "together with nDeDxHits > 0");
 
   // Build and put per-hit table
-  const size_t nHitsTotal = hit_dEdx.size();
+  const size_t nHitsTotal = hitDEdx.size();
   auto hitTab = std::make_unique<nanoaod::FlatTable>(nHitsTotal, name_ + "DeDxHits", false, false);
-  hitTab->addColumn<float>("hit_dEdx", hit_dEdx, "dE/dx per hit: charge/pathlength [MeV/cm]");
-  hitTab->addColumn<int>("hit_layerIndex", hit_layerIndex, "pixel layer / strip layer or wheel");
-  hitTab->addColumn<int>("hit_detId", hit_detId, "raw DetId (read back as uint32)");
+  hitTab->addColumn<int16_t>("muonIdx", hitMuonIdx, "index into the Muon collection");
+  hitTab->addColumn<float>("dEdx", hitDEdx, "charge/pathlength [MeV/cm]", /*mantissaBits=*/12);
+  hitTab->addColumn<uint8_t>("layer", hitLayer, "pixel layer/disk or strip layer/wheel, 0 if unknown");
+  hitTab->addColumn<uint32_t>("detId", hitDetId, "raw DetId");
 
   iEvent.put(std::move(muTab), name_);
   iEvent.put(std::move(hitTab), name_ + "DeDxHits");
@@ -315,11 +399,15 @@ void MuonDeDxTableProducer::produce(edm::StreamID,
 
 void MuonDeDxTableProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
-  desc.add<std::string>("name", "Muon")->setComment("name of the Muon FlatTable being extended (also prefixes the hit table)");
-  desc.add<edm::InputTag>("muons", edm::InputTag("linkedObjects", "muons"))->setComment("PAT muon collection (row identity/order — same source as the Muon main table)");
-  desc.add<edm::InputTag>("isolatedTracks", edm::InputTag("isolatedTracks"))->setComment("full (uncleaned) isolated track collection used for packedCandidate identity matching");
-  desc.add<edm::InputTag>("dedx", edm::InputTag("isolatedTracks"))->setComment("DeDxHitInfo association product (same label as isolatedTracks)");
-  descriptions.add("MuonDeDxTable", desc);
+  desc.add<std::string>("name", "Muon")
+      ->setComment("name of the Muon FlatTable being extended (also prefixes the hit table)");
+  desc.add<edm::InputTag>("muons", edm::InputTag("linkedObjects", "muons"))
+      ->setComment("PAT muon collection (row identity and order match the Muon main table)");
+  desc.add<edm::InputTag>("isolatedTracks", edm::InputTag("isolatedTracks"))
+      ->setComment("full (uncleaned) isolated track collection used for packedCandidate identity matching");
+  desc.add<edm::InputTag>("dedx", edm::InputTag("isolatedTracks"))
+      ->setComment("DeDxHitInfo association product (same label as isolatedTracks)");
+  descriptions.add("muonDeDxTable", desc);
 }
 
 DEFINE_FWK_MODULE(MuonDeDxTableProducer);
