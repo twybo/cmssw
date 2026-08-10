@@ -196,8 +196,9 @@ namespace {
     if (muon.pt() <= 0.f)
       return std::numeric_limits<float>::max();
     return (muon.pfIsolationR04().sumChargedHadronPt +
-            std::max(0.f, muon.pfIsolationR04().sumNeutralHadronEt + muon.pfIsolationR04().sumPhotonEt -
-                              0.5f * muon.pfIsolationR04().sumPUPt)) /
+            std::max(0.f,
+                     muon.pfIsolationR04().sumNeutralHadronEt + muon.pfIsolationR04().sumPhotonEt -
+                         0.5f * muon.pfIsolationR04().sumPUPt)) /
            muon.pt();
   }
 
