@@ -203,12 +203,12 @@ namespace {
   }
 
   bool passesGoodMuon(const pat::Muon& mu, float pfIso) {
-    constexpr float kEtaMin = -1.5f, kEtaMax = 1.5f;
+    constexpr float kEtaMin = -1.5f, kEtaMax = 1.5f; // module edge hits do not contain a valid dE/dx measurement; this identification is not as clear for EC hence |eta| < 1.5.
     constexpr float kPFIsoMin = 0.f, kPFIsoMax = 0.15f;
-    constexpr float kTimeMin = 0.f, kTimeMax = 25.f;
+    constexpr float kTimeMin = 0.f, kTimeMax = 25.f;  // favour massive particles
     constexpr float kTimeErrMin = 0.f, kTimeErrMax = 4.f;
     constexpr float kNDofMin = 8.f;
-    constexpr float kInverseBetaMin = 1.0f;
+    constexpr float kInverseBetaMin = 1.0f;  // reject pathological (v > c) muons
 
     if (mu.eta() < kEtaMin || mu.eta() > kEtaMax)
       return false;
