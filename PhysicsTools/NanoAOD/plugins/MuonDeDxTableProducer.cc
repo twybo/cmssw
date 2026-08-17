@@ -289,13 +289,15 @@ void MuonDeDxTableProducer::produce(edm::StreamID, edm::Event& iEvent, const edm
   std::vector<float> hitDEdx;
   std::vector<uint8_t> hitLayer;
   std::vector<uint32_t> hitDetId;
+  std::vector<bool> hitIsNearEdge;
 
+  // The "good muon" selection (fillHits) gates only which muons contribute rows to the MuonDeDxHits per-hit
+  // table; nDeDxHits, nPixelDeDxHits and hasTrackerHitNearEdge below are filled for every muon with a matched
+  // isolatedTracks/DeDxHitInfo entry, independent of the selection.
   for (size_t i = 0; i < nMuons; ++i) {
     const pat::Muon& mu = (*muonsH)[i];
 
-    const float pfIso = pfRelIso04(mu);
-    if (!passesGoodMuon(mu, pfIso))
-      continue;
+    const bool fillHits = passesGoodMuon(mu, pfRelIso04(mu));
 
     size_t matchedIdx = std::numeric_limits<size_t>::max();
     for (size_t k = 0; k < mu.numberOfSourceCandidatePtrs(); ++k) {
@@ -329,47 +331,52 @@ void MuonDeDxTableProducer::produce(edm::StreamID, edm::Event& iEvent, const edm
       const float localY = dedx.pos(h).y();
       const int subdet = dedxId.subdetId();
 
-      float charge;
-      if (isPixel(subdet)) {
-        charge = kMeVPerElectronHolePair * dedx.charge(h);
+      if (isPixel(subdet))
         ++nPixel;
-      } else {
-        charge = kMeVPerElectronHolePair * kElectronsPerADCStrip * dedx.charge(h);
-      }
-      hitDEdx.push_back(charge / dedx.pathlength(h));
-      hitMuonIdx.push_back(static_cast<int16_t>(i));
 
-      // Layer/disk/wheel index; 0 = unknown.
-      uint8_t layer = 0;
-      if (isPixel(subdet)) {
-        if (subdet == PixelSubdetector::PixelBarrel)
-          layer = static_cast<uint8_t>(tTopo.pxbLayer(dedxId));
-        else
-          layer = static_cast<uint8_t>(tTopo.pxfDisk(dedxId));
-      } else {
-        switch (SiStripDetId(dedxId).subDetector()) {
-          case SiStripDetId::TIB:
-            layer = static_cast<uint8_t>(tTopo.tibLayer(dedxId));
-            break;
-          case SiStripDetId::TID:
-            layer = static_cast<uint8_t>(tTopo.tidWheel(dedxId));
-            break;
-          case SiStripDetId::TOB:
-            layer = static_cast<uint8_t>(tTopo.tobLayer(dedxId));
-            break;
-          case SiStripDetId::TEC:
-            layer = static_cast<uint8_t>(tTopo.tecWheel(dedxId));
-            break;
-          default:
-            layer = 0;
-        }
-      }
-      hitLayer.push_back(layer);
-      hitDetId.push_back(dedxId.rawId());
-
-      // Edge flag: short-circuit once true
-      if (!nearEdge && isHitNearEdge(tTopo, dedxId, localX, localY))
+      const bool hitNearEdge = isHitNearEdge(tTopo, dedxId, localX, localY);
+      if (hitNearEdge)
         nearEdge = true;
+
+      if (fillHits) {
+        float charge;
+        if (isPixel(subdet)) {
+          charge = kMeVPerElectronHolePair * dedx.charge(h);
+        } else {
+          charge = kMeVPerElectronHolePair * kElectronsPerADCStrip * dedx.charge(h);
+        }
+        hitDEdx.push_back(charge / dedx.pathlength(h));
+        hitMuonIdx.push_back(static_cast<int16_t>(i));
+
+        // Layer/disk/wheel index; 0 = unknown.
+        uint8_t layer = 0;
+        if (isPixel(subdet)) {
+          if (subdet == PixelSubdetector::PixelBarrel)
+            layer = static_cast<uint8_t>(tTopo.pxbLayer(dedxId));
+          else
+            layer = static_cast<uint8_t>(tTopo.pxfDisk(dedxId));
+        } else {
+          switch (SiStripDetId(dedxId).subDetector()) {
+            case SiStripDetId::TIB:
+              layer = static_cast<uint8_t>(tTopo.tibLayer(dedxId));
+              break;
+            case SiStripDetId::TID:
+              layer = static_cast<uint8_t>(tTopo.tidWheel(dedxId));
+              break;
+            case SiStripDetId::TOB:
+              layer = static_cast<uint8_t>(tTopo.tobLayer(dedxId));
+              break;
+            case SiStripDetId::TEC:
+              layer = static_cast<uint8_t>(tTopo.tecWheel(dedxId));
+              break;
+            default:
+              layer = 0;
+          }
+        }
+        hitLayer.push_back(layer);
+        hitDetId.push_back(dedxId.rawId());
+        hitIsNearEdge.push_back(hitNearEdge);
+      }
     }
 
     nPixelDeDxHits[i] = static_cast<uint8_t>(std::min<size_t>(nPixel, kMaxHitCount));
@@ -378,13 +385,14 @@ void MuonDeDxTableProducer::produce(edm::StreamID, edm::Event& iEvent, const edm
 
   // Build and put Muon extension table
   auto muTab = std::make_unique<nanoaod::FlatTable>(nMuons, name_, false, /*extension=*/true);
-  muTab->addColumn<uint8_t>("nDeDxHits", nDeDxHits, "number of dE/dx hits, 0 if none were evaluated");
+  muTab->addColumn<uint8_t>(
+      "nDeDxHits",
+      nDeDxHits,
+      "number of dE/dx hits on the matched track; 0 if the muon has no matching isolatedTracks entry or no "
+      "DeDxHitInfo");
   muTab->addColumn<uint8_t>("nPixelDeDxHits", nPixelDeDxHits, "number of pixel dE/dx hits");
-  muTab->addColumn<bool>("hasTrackerHitNearEdge",
-                         hasNearEdge,
-                         "any dE/dx hit near a sensor edge; also false when no hit was evaluated (muon outside the "
-                         "producer selection, no matching isolatedTracks entry, or no DeDxHitInfo), so read it "
-                         "together with nDeDxHits > 0");
+  muTab->addColumn<bool>(
+      "hasTrackerHitNearEdge", hasNearEdge, "any dE/dx hit near a sensor edge; false when nDeDxHits == 0");
 
   // Build and put per-hit table
   const size_t nHitsTotal = hitDEdx.size();
@@ -393,6 +401,10 @@ void MuonDeDxTableProducer::produce(edm::StreamID, edm::Event& iEvent, const edm
   hitTab->addColumn<float>("dEdx", hitDEdx, "charge/pathlength [MeV/cm]", /*mantissaBits=*/12);
   hitTab->addColumn<uint8_t>("layer", hitLayer, "pixel layer/disk or strip layer/wheel, 0 if unknown");
   hitTab->addColumn<uint32_t>("detId", hitDetId, "raw DetId");
+  hitTab->addColumn<bool>("isHitNearEdge",
+                          hitIsNearEdge,
+                          "hit is within the sensor-edge fiducial region (EXO-19-006), i.e. its dE/dx measurement "
+                          "is not reliable");
 
   iEvent.put(std::move(muTab), name_);
   iEvent.put(std::move(hitTab), name_ + "DeDxHits");
