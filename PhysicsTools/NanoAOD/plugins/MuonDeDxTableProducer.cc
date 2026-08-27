@@ -287,6 +287,7 @@ void MuonDeDxTableProducer::produce(edm::StreamID, edm::Event& iEvent, const edm
   // Per-hit columns (accumulated across all muons)
   std::vector<int16_t> hitMuonIdx;
   std::vector<float> hitDEdx;
+  std::vector<float> hitPathLength;
   std::vector<uint8_t> hitLayer;
   std::vector<uint32_t> hitDetId;
   std::vector<bool> hitIsNearEdge;
@@ -345,7 +346,13 @@ void MuonDeDxTableProducer::produce(edm::StreamID, edm::Event& iEvent, const edm
         } else {
           charge = kMeVPerElectronHolePair * kElectronsPerADCStrip * dedx.charge(h);
         }
+        // dedx.pathlength() is filled in RECO (RecoTracker/DeDx/plugins/DeDxHitInfoProducer.cc) as the nominal
+        // module thickness from the tracker geometry divided by |cos| of the local track incidence angle taken
+        // from the fitted trajectory state on that module; it is copied unchanged into MiniAOD. It is stored
+        // alongside dEdx so the geometric denominator can be undone or recalibrated downstream (e.g. the
+        // effective-path-length correction applied in RecoTracker/DeDx/plugins/DeDxHitCalibrator.cc).
         hitDEdx.push_back(charge / dedx.pathlength(h));
+        hitPathLength.push_back(dedx.pathlength(h));
         hitMuonIdx.push_back(static_cast<int16_t>(i));
 
         // Layer/disk/wheel index; 0 = unknown.
@@ -399,6 +406,12 @@ void MuonDeDxTableProducer::produce(edm::StreamID, edm::Event& iEvent, const edm
   auto hitTab = std::make_unique<nanoaod::FlatTable>(nHitsTotal, name_ + "DeDxHits", false, false);
   hitTab->addColumn<int16_t>("muonIdx", hitMuonIdx, "index into the Muon collection");
   hitTab->addColumn<float>("dEdx", hitDEdx, "charge/pathlength [MeV/cm]", /*mantissaBits=*/12);
+  hitTab->addColumn<float>("pathLength",
+                           hitPathLength,
+                           "path length used in the dE/dx denominator [cm]: nominal sensor thickness from the "
+                           "tracker geometry divided by |cos| of the local track incidence angle (straight-line "
+                           "crossing of the module, not an entry-to-exit reconstruction)",
+                           /*mantissaBits=*/12);
   hitTab->addColumn<uint8_t>("layer", hitLayer, "pixel layer/disk or strip layer/wheel, 0 if unknown");
   hitTab->addColumn<uint32_t>("detId", hitDetId, "raw DetId");
   hitTab->addColumn<bool>("isHitNearEdge",
