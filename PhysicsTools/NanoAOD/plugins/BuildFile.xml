@@ -18,6 +18,7 @@
 <use name="DataFormats/OnlineMetaData"/>
 <use name="DataFormats/PatCandidates"/>
 <use name="DataFormats/ProtonReco"/>
+<use name="DataFormats/Provenance"/>
 <use name="DataFormats/SiPixelDetId"/>
 <use name="DataFormats/SiStripDetId"/>
 <use name="DataFormats/TrackReco"/>

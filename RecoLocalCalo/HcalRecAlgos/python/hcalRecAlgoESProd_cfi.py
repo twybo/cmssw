@@ -38,13 +38,18 @@ run2_HCAL_2017.toModify(hcalRecAlgos,
                                  'HBHEFlatNoise', 
                                  'HBHESpikeNoise', 
                                  'HBHETS4TS5Noise', 
-                                 'HBHENegativeNoise', 
+                                 'HBHENegativeNoise',
                                  'HBHEOOTPU']
             ),
         4 : dict( RecHitFlags = ['HFLongShort', 
                                  'HFS8S1Ratio',  
                                  'HFPET', 
                                  'HFSignalAsymmetry']
+            ),
+        6 : dict( RecHitFlags = ['HBHERun3StuckADC',
+                                 'HBHERun3repeatedADCblock',
+                                 'HBHERun3BadCapId',
+                                 'HBHERun3NonrotatingCapId']
             ),
     },
     RecoveredRecHitBits = ['']

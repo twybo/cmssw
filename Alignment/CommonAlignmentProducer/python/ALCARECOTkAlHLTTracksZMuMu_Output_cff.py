@@ -18,10 +18,28 @@ OutALCARECOTkAlHLTTracksZMuMu_noDrop = cms.PSet(
         'keep recoTrackExtras_ALCARECOTkAlHLTPixelZMuMuVertexTracks_*_*',
         'keep TrackingRecHitsOwned_ALCARECOTkAlHLTPixelZMuMuVertexTracks_*_*',
         'keep SiPixelClusteredmNewDetSetVector_ALCARECOTkAlHLTPixelZMuMuVertexTracks_*_*',
-	'keep *_hltVerticesPFFilter_*_*',
+	    'keep *_hltVerticesPFFilter_*_*',
         'keep *_hltOnlineBeamSpot_*_*',
-        'keep DCSRecord_onlineMetaDataDigis_*_*'
+        'keep DCSRecord_onlineMetaDataDigis_*_*',
+        'keep PixelFEDChanneledmNewDetSetVector_siPixelDigis_*_*'
     )
+)
+
+# PbPb customization
+from Configuration.Eras.Modifier_pp_on_PbPb_run3_cff import pp_on_PbPb_run3
+
+_pp_on_PbPb_run3_outputCommands = OutALCARECOTkAlHLTTracksZMuMu_noDrop.outputCommands.copy()
+_pp_on_PbPb_run3_outputCommands.remove('keep *_hltPixelVertices_*_*')
+_pp_on_PbPb_run3_outputCommands.remove('keep *_hltVerticesPFFilter_*_*')
+
+_pp_on_PbPb_run3_outputCommands.extend([
+    'keep *_hltPixelVerticesPPOnAA_*_*',
+    'keep *_hltVerticesPFFilterPPOnAA_*_*',
+])
+
+pp_on_PbPb_run3.toModify(
+    OutALCARECOTkAlHLTTracksZMuMu_noDrop,
+    outputCommands=_pp_on_PbPb_run3_outputCommands
 )
 
 # in Phase2, remove the SiStrip clusters and keep the OT ones instead
