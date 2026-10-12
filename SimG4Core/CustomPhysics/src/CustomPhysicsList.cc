@@ -58,6 +58,10 @@ CustomPhysicsList::~CustomPhysicsList() {}
 void CustomPhysicsList::ConstructParticle() {
   edm::LogVerbatim("SimG4CoreCustomPhysics") << "===== CustomPhysicsList::ConstructParticle ";
   fParticleFactory.get()->loadCustomParticles(particleDefFilePath);
+  if (myConfig.existsAs<double>("TauPrimeMassGeV")) {
+    fParticleFactory->addTauPrime(myConfig.getParameter<double>("TauPrimeMassGeV"),
+                                myConfig.getParameter<double>("TauPrimeChargeMagnitude"));
+  }
 }
 
 void CustomPhysicsList::ConstructProcess() {

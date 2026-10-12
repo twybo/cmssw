@@ -4,12 +4,14 @@
 
 #include "FWCore/ParameterSet/interface/FileInPath.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
+#include "FWCore/Utilities/interface/Exception.h"
 
 #include "G4ParticleTable.hh"
 #include "G4DecayTable.hh"
 #include "G4PhaseSpaceDecayChannel.hh"
 #include "G4ProcessManager.hh"
 #include "G4ParticleDefinition.hh"
+#include "G4AutoLock.hh"
 #include <CLHEP/Units/SystemOfUnits.h>
 #include <CLHEP/Units/PhysicalConstants.h>
 
@@ -19,6 +21,8 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <algorithm>
+#include <cmath>
 
 bool CustomParticleFactory::loaded = false;
 std::vector<G4ParticleDefinition *> CustomParticleFactory::m_particles;
@@ -28,6 +32,49 @@ G4Mutex CustomParticleFactory::customParticleFactoryMutex = G4MUTEX_INITIALIZER;
 #endif
 
 CustomParticleFactory::CustomParticleFactory() {}
+
+void CustomParticleFactory::addTauPrime(double massGeV, double chargeMagnitude) {
+  if (!std::isfinite(massGeV) || massGeV <= 0. || !std::isfinite(chargeMagnitude) || chargeMagnitude <= 0.) {
+    throw cms::Exception("TauPrimeConfiguration") << "Tau-prime mass and charge magnitude must be finite and positive";
+  }
+#ifdef G4MULTITHREADED
+  G4AutoLock lock(&customParticleFactoryMutex);
+#endif
+  auto* table = G4ParticleTable::GetParticleTable();
+  auto* particle = table->FindParticle(17);
+  auto* antiparticle = table->FindParticle(-17);
+  if (particle || antiparticle) {
+    for (auto* existing : {particle, antiparticle}) {
+      if (!existing) {
+        throw cms::Exception("TauPrimeConfiguration") << "Incomplete existing tau-prime particle pair";
+      }
+      const int sign = existing->GetPDGEncoding() == 17 ? 1 : -1;
+      if (std::abs(existing->GetPDGMass() / CLHEP::GeV - massGeV) > 1.e-10 * massGeV ||
+          std::abs(existing->GetPDGCharge() / CLHEP::eplus + sign * chargeMagnitude) > 1.e-12 ||
+          existing->GetPDGiSpin() != 1 || existing->GetLeptonNumber() != sign ||
+          existing->GetBaryonNumber() != 0 || !existing->GetPDGStable() ||
+          existing->GetPDGWidth() != 0. || existing->GetPDGLifeTime() != -1. ||
+          existing->GetAntiPDGEncoding() != -existing->GetPDGEncoding() ||
+          std::find(m_particles.begin(), m_particles.end(), existing) == m_particles.end()) {
+        throw cms::Exception("TauPrimeConfiguration") << "Conflicting existing definition for PDG "
+                                                      << existing->GetPDGEncoding();
+      }
+    }
+    return;
+  }
+  for (int sign : {1, -1}) {
+    auto* tauPrime = new CustomParticle(sign == 1 ? "tauprime-" : "tauprime+",
+                                       massGeV * CLHEP::GeV,
+                                       0.,
+                                       -sign * chargeMagnitude * CLHEP::eplus,
+                                       1, +1, 0, 0, 0, 0,
+                                       "custom", sign, 0, sign * 17, true, -1., nullptr);
+    tauPrime->SetCloud(nullptr);
+    tauPrime->SetSpectator(nullptr);
+    tauPrime->SetAntiPDGEncoding(-sign * 17);
+    m_particles.push_back(tauPrime);
+  }
+}
 
 void CustomParticleFactory::loadCustomParticles(const std::string &filePath) {
   if (loaded) {

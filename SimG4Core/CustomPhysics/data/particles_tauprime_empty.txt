@@ -1,0 +1,3 @@
+# Tau-prime properties are supplied by the tracked runtime configuration.
+BLOCK MASS
+BLOCK END
