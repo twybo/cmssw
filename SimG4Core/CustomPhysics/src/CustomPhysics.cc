@@ -12,12 +12,45 @@
 #include "G4StoppingPhysics.hh"
 #include "G4HadronElasticPhysics.hh"
 #include "G4NeutronTrackingCut.hh"
+#include "G4HadronicParameters.hh"
 
 #include <CLHEP/Units/SystemOfUnits.h>
 using CLHEP::ns;
 
 CustomPhysics::CustomPhysics(const edm::ParameterSet& p) : PhysicsList(p) {
   int ver = p.getUntrackedParameter<int>("Verbosity", 0);
+  if (p.existsAs<double>("TauPrimeMassGeV")) {
+    // Preserve the target FTFPCMS_BERT_EMM constructor, including its EMH type dispatch.
+    auto standard = p;
+    standard.addParameter<std::string>("type", p.getParameter<std::string>("TauPrimeStandardPhysicsType"));
+    const bool emPhys = p.getUntrackedParameter<bool>("EMPhysics", true);
+    const bool hadPhys = p.getUntrackedParameter<bool>("HadPhysics", true);
+    const double minFTFP = p.getParameter<double>("EminFTFP") * CLHEP::GeV;
+    const double maxBERT = p.getParameter<double>("EmaxBERT") * CLHEP::GeV;
+    const double maxBERTpi = p.getParameter<double>("EmaxBERTpi") * CLHEP::GeV;
+    if (emPhys) {
+      RegisterPhysics(new CMSEmStandardPhysics(ver, standard));
+      auto* gn = new G4EmExtraPhysics(ver);
+      RegisterPhysics(gn);
+      gn->MuonToMuMu(p.getParameter<bool>("G4MuonPairProductionByMuon"));
+    }
+    RegisterPhysics(new G4DecayPhysics(ver));
+    if (hadPhys) {
+      auto* parameters = G4HadronicParameters::Instance();
+      parameters->SetEnableNeutronGeneralProcess(p.getParameter<bool>("G4NeutronGeneralProcess"));
+      parameters->SetEnableBCParticles(p.getParameter<bool>("G4BCHadronicProcess"));
+      parameters->SetEnableHyperNuclei(p.getParameter<bool>("G4LightHyperNucleiTracking"));
+      RegisterPhysics(new G4HadronElasticPhysics(ver));
+      RegisterPhysics(new CMSHadronPhysicsFTFP_BERT(minFTFP, maxBERT, maxBERTpi, minFTFP, maxBERT));
+      RegisterPhysics(new G4StoppingPhysics(ver));
+      RegisterPhysics(new G4IonPhysics(ver));
+    }
+    edm::LogVerbatim("TauPrimeValidation")
+        << "TAUPRIME_STANDARD_PHYSICS type=" << standard.getParameter<std::string>("type")
+        << " EMPhysics=" << emPhys << " HadPhysics=" << hadPhys;
+    RegisterPhysics(new CustomPhysicsList("custom", p));
+    return;
+  }
   bool tracking = p.getParameter<bool>("TrackingCut");
   bool ssPhys = p.getUntrackedParameter<bool>("ExoticaPhysicsSS", false);
   bool dbrem = p.getUntrackedParameter<bool>("DBrem", false);

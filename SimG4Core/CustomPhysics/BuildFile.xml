@@ -3,6 +3,7 @@
 </export>
 <use name="FWCore/Framework"/>
 <use name="FWCore/MessageLogger"/>
+<use name="FWCore/Utilities"/>
 <use name="SimG4Core/Notification"/>
 <use name="SimG4Core/Physics"/>
 <use name="SimG4Core/PhysicsLists"/>
