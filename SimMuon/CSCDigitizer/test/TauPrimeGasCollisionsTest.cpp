@@ -1,5 +1,6 @@
 #include "CLHEP/Random/JamesRandom.h"
-#include "SimMuon/CSCDigitizer/src/CSCGasCollisions.h"
+#include "SimMuon/CSCDigitizer/interface/CSCGasCollisions.h"
+#include "SimMuon/CSCDigitizer/src/CSCCrossGap.h"
 #include "FWCore/Utilities/interface/Exception.h"
 #include <cmath>
 #include <iostream>

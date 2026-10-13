@@ -8,7 +8,7 @@
  *  \author Borislav Pavlov -- University of Sofia
  */
 #include "SimMuon/RPCDigitizer/src/RPCSim.h"
-#include "SimMuon/CSCDigitizer/src/CSCGasCollisions.h"
+#include "SimMuon/CSCDigitizer/interface/CSCGasCollisions.h"
 #include <memory>
 #include "SimMuon/RPCDigitizer/src/RPCSynchronizer.h"
 

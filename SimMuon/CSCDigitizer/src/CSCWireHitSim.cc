@@ -2,7 +2,7 @@
 #include "Geometry/CSCGeometry/interface/CSCLayer.h"
 #include "Geometry/CSCGeometry/interface/CSCLayerGeometry.h"
 #include "SimMuon/CSCDigitizer/src/CSCDriftSim.h"
-#include "SimMuon/CSCDigitizer/src/CSCGasCollisions.h"
+#include "SimMuon/CSCDigitizer/interface/CSCGasCollisions.h"
 #include "SimMuon/CSCDigitizer/src/CSCWireHitSim.h"
 
 #include "CLHEP/Random/RandFlat.h"

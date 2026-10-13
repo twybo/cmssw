@@ -7,7 +7,7 @@
 
 #include "CLHEP/Random/JamesRandom.h"
 #include "DataFormats/MuonDetId/interface/CSCDetId.h"
-#include "SimMuon/CSCDigitizer/src/CSCGasCollisions.h"
+#include "SimMuon/CSCDigitizer/interface/CSCGasCollisions.h"
 #include <algorithm>
 #include <functional>
 #include <numeric>
