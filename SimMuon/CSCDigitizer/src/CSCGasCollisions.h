@@ -26,7 +26,8 @@ namespace CLHEP {
 
 class CSCGasCollisions {
 public:
-  CSCGasCollisions(const edm::ParameterSet &pset);
+  CSCGasCollisions(const edm::ParameterSet &pset, double density = 2.1416e-03, double ionizationEnergy = 14.95,
+                   const char *detector = "CSC");
   virtual ~CSCGasCollisions();
 
   void setParticleDataTable(const ParticleDataTable *pdt);
@@ -35,6 +36,9 @@ public:
                 std::vector<LocalPoint> &clusters,
                 std::vector<int> &electrons,
                 CLHEP::HepRandomEngine *);
+
+  bool isTauPrime(const PSimHit &hit) const;
+  void logTauPrimeHit(const PSimHit &, int total, int survivors, bool accepted, const char *detector);
 
   bool dumpGasCollisions(void) const { return dumpGasCollisions_; }
   bool saveGasCollisions(void) const { return saveGasCollisions_; }
@@ -45,8 +49,9 @@ public:
   static const int MAX_STEPS = 400;
 
 private:
+  friend class TauPrimeGasCollisionsTest;
   void readCollisionTable();
-  void fillCollisionsForThisGamma(float, std::vector<float> &) const;
+  void fillCollisionsForThisGamma(float, std::vector<float> &, bool tauPrime) const;
   float lnEnergyLoss(float, const std::vector<float> &) const;
   double generateStep(double avCollisions, CLHEP::HepRandomEngine *) const;
   float generateEnergyLoss(double avCollisions,
@@ -59,6 +64,10 @@ private:
 
   void writeSummary(int n_try, int n_steps, double sum_steps, float dedx, const PSimHit &simhit) const;
 
+  double tauPrimeMass_ = 0.;
+  double tauPrimeCharge_ = 1.;
+  bool tauPrimeValidate_ = false;
+  unsigned int tauPrimeLoggedHits_ = 0;
   const std::string me;  // class name
   double gasDensity;     // Density of CSC gas mix
   // The question of what is reasonable for deCut is complex. But it seems clear

@@ -11,6 +11,7 @@
 <use name="MagneticField/Engine"/>
 <use name="MagneticField/Records"/>
 <use name="SimMuon/Neutron"/>
+<use name="SimMuon/CSCDigitizer"/>
 <use name="CLHEP"/>
 <use name="root"/>
 <flags EDM_PLUGIN="1"/>

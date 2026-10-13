@@ -6,6 +6,7 @@
 #include "SimMuon/CSCDigitizer/src/CSCWireHitSim.h"
 
 #include "CLHEP/Random/RandFlat.h"
+#include <numeric>
 
 CSCWireHitSim::CSCWireHitSim(CSCDriftSim *driftSim, const edm::ParameterSet &p)
     : theDriftSim(driftSim), theGasIonizer(new CSCGasCollisions(p)), theNewWireHits() {}
@@ -21,6 +22,8 @@ std::vector<CSCDetectorHit> &CSCWireHitSim::simulate(const CSCLayer *layer,
   for (edm::PSimHitContainer::const_iterator hitItr = simHits.begin(); hitItr != simHits.end(); ++hitItr) {
     std::vector<LocalPoint> ionClusters = getIonizationClusters(*hitItr, layer, engine);
 
+    if (theGasIonizer->isTauPrime(*hitItr) && ionClusters.size() < 4)
+      continue;
     unsigned nClusters = ionClusters.size();
     theNewWireHits.reserve(theNewWireHits.size() + nClusters);
 
@@ -69,6 +72,9 @@ std::vector<LocalPoint> CSCWireHitSim::getIonizationClusters(const PSimHit &simH
       }
     }
   }
+  if (theGasIonizer->isTauPrime(simHit))
+    theGasIonizer->logTauPrimeHit(simHit, std::accumulate(electrons.begin(), electrons.end(), 0),
+                                results.size(), results.size() >= 4, "CSC");
   LogTrace("CSCWireHitSim") << "CSCWireHitSim: there are " << results.size()
                             << " clusters identified with each electron.";
   return results;
