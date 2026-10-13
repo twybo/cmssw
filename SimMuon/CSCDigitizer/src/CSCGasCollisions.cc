@@ -21,7 +21,8 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
 #include "FWCore/Utilities/interface/Exception.h"
-#include "SimMuon/CSCDigitizer/src/CSCGasCollisions.h"
+#include "SimMuon/CSCDigitizer/interface/CSCGasCollisions.h"
+#include "SimMuon/CSCDigitizer/src/CSCCrossGap.h"
 
 #include "CLHEP/Random/RandExponential.h"
 #include "CLHEP/Random/RandFlat.h"

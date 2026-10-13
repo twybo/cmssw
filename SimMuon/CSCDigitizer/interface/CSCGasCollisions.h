@@ -15,7 +15,7 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "SimDataFormats/TrackingHit/interface/PSimHit.h"
 #include "SimGeneral/HepPDTRecord/interface/ParticleDataTable.h"
-#include "SimMuon/CSCDigitizer/src/CSCCrossGap.h"
+class CSCCrossGap;
 
 #include <string>
 #include <vector>

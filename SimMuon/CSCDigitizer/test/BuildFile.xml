@@ -6,4 +6,4 @@
 <bin file="CSCGasCollisionsTest.cpp"/>
 
 <bin file="TauPrimeGasCollisionsTest.cpp"/>
-<test name="TauPrimeGasCollisionsTest" command="TauPrimeGasCollisionsTest"/>
+<test name="TauPrimeGasCollisionsRegression" command="TauPrimeGasCollisionsTest"/>
