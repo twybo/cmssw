@@ -52,6 +52,8 @@ DTDigitizer::DTDigitizer(const ParameterSet &conf_)
     :  // Sync Algo
       theSync{DTDigiSyncFactory::get()->create(conf_.getParameter<string>("SyncName"),
                                                conf_.getParameter<ParameterSet>("pset"))} {
+  if (conf_.existsAs<double>("TauPrimeMassGeV"))
+    tauPrimeGas_ = std::make_unique<CSCGasCollisions>(conf_, 0.00169, 15.49, "DT");
   // Set verbose output
   debug = conf_.getUntrackedParameter<bool>("debug");
 
@@ -189,6 +191,22 @@ void DTDigitizer::produce(Event &iEvent, const EventSetup &iSetup) {
 
       // Loop on the hits of this wire
       for (vector<const PSimHit *>::const_iterator hit = vhit.begin(); hit != vhit.end(); hit++) {
+        if (tauPrimeGas_ && tauPrimeGas_->isTauPrime(**hit)) {
+          std::vector<LocalPoint> positions;
+          std::vector<int> electrons;
+          tauPrimeGas_->simulate(**hit, positions, electrons, engine);
+          int total = 0;
+          int survivors = 0;
+          for (int count : electrons) {
+            total += count;
+            for (int i = 0; i < count; ++i)
+              if (CLHEP::RandFlat::shoot(engine) < 0.667)
+                ++survivors;
+          }
+          tauPrimeGas_->logTauPrimeHit(**hit, total, survivors, survivors >= 4, "DT");
+          if (survivors < 4)
+            continue;
+        }
         //************ 5 ***************
         LocalPoint locPos = (*hit)->localPosition();
 

@@ -8,6 +8,8 @@
  *  \author Borislav Pavlov -- University of Sofia
  */
 #include "SimMuon/RPCDigitizer/src/RPCSim.h"
+#include "SimMuon/CSCDigitizer/src/CSCGasCollisions.h"
+#include <memory>
 #include "SimMuon/RPCDigitizer/src/RPCSynchronizer.h"
 
 #include <cstring>
@@ -44,6 +46,7 @@ private:
   void init() override {}
 
 private:
+  std::unique_ptr<CSCGasCollisions> tauPrimeGas_;
   double aveEff;
   double aveCls;
   double resRPC;

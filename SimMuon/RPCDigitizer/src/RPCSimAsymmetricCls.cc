@@ -9,6 +9,7 @@
 #include "Geometry/RPCGeometry/interface/RPCGeomServ.h"
 
 #include <cmath>
+#include <numeric>
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -37,6 +38,8 @@
 using namespace std;
 
 RPCSimAsymmetricCls::RPCSimAsymmetricCls(const edm::ParameterSet& config) : RPCSim(config) {
+  if (config.existsAs<double>("TauPrimeMassGeV"))
+    tauPrimeGas_ = std::make_unique<CSCGasCollisions>(config, 0.00425, 10.26, "RPC");
   aveEff = config.getParameter<double>("averageEfficiency");
   aveCls = config.getParameter<double>("averageClusterSize");
   resRPC = config.getParameter<double>("timeResolution");
@@ -147,6 +150,15 @@ void RPCSimAsymmetricCls::simulate(const RPCRoll* roll,
   for (edm::PSimHitContainer::const_iterator _hit = rpcHits.begin(); _hit != rpcHits.end(); ++_hit) {
     if (!eledig && _hit->particleType() == 11)
       continue;
+    if (tauPrimeGas_ && tauPrimeGas_->isTauPrime(*_hit)) {
+      std::vector<LocalPoint> positions;
+      std::vector<int> electrons;
+      tauPrimeGas_->simulate(*_hit, positions, electrons, engine);
+      int total = std::accumulate(electrons.begin(), electrons.end(), 0);
+      tauPrimeGas_->logTauPrimeHit(*_hit, total, total, total >= 4, "RPC");
+      if (total < 4)
+        continue;
+    }
     // Here I hould check if the RPC are up side down;
     const LocalPoint& entr = _hit->entryPoint();
 

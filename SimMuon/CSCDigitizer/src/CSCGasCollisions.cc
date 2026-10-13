@@ -55,11 +55,11 @@ CO2   13.7 eV
 CF4    17.8
 to arrive at a weighted average of eion = 14.95 */
 
-CSCGasCollisions::CSCGasCollisions(const edm::ParameterSet &pset)
+CSCGasCollisions::CSCGasCollisions(const edm::ParameterSet &pset, double density, double ionizationEnergy, const char *detector)
     : me("CSCGasCollisions"),
-      gasDensity(2.1416e-03),
+      gasDensity(density),
       deCut(1.e05),
-      eion(14.95),
+      eion(ionizationEnergy),
       ework(34.0),
       clusterExtent(0.001),
       theGammaBins(N_GAMMA, 0.),
@@ -69,7 +69,7 @@ CSCGasCollisions::CSCGasCollisions(const edm::ParameterSet &pset)
       theParticleDataTable(nullptr),
       saveGasCollisions_(false),
       dumpGasCollisions_(false) {
-  dumpGasCollisions_ = pset.getUntrackedParameter<bool>("dumpGasCollisions");
+  dumpGasCollisions_ = pset.getUntrackedParameter<bool>("dumpGasCollisions", false);
 
   edm::LogInfo(me) << "Constructing a " << me << ":";
   edm::LogInfo(me) << "gas density = " << gasDensity << " g/cm3";
@@ -81,6 +81,19 @@ CSCGasCollisions::CSCGasCollisions(const edm::ParameterSet &pset)
   edm::LogInfo(me) << "dump gas collision and simhit information? " << dumpGasCollisions();
   edm::LogInfo(me) << "save gas collision information? -NOT YET IMPLEMENTED- " << saveGasCollisions();
 
+  if (pset.existsAs<double>("TauPrimeMassGeV")) {
+    tauPrimeMass_ = pset.getParameter<double>("TauPrimeMassGeV");
+    tauPrimeCharge_ = pset.getParameter<double>("TauPrimeChargeMagnitude");
+    tauPrimeValidate_ = pset.getParameter<bool>("TauPrimeDigiValidation");
+    if (!(std::isfinite(tauPrimeMass_) && tauPrimeMass_ > 0. && std::isfinite(tauPrimeCharge_) &&
+          tauPrimeCharge_ > 0. && std::isfinite(tauPrimeCharge_ * tauPrimeCharge_) &&
+          tauPrimeCharge_ * tauPrimeCharge_ > 0.))
+      throw cms::Exception("Configuration") << "Tau-prime DIGI mass and charge must be finite and positive";
+    if (tauPrimeValidate_)
+      edm::LogVerbatim("TauPrimeDigi") << "TAUPRIME_DIGI_CONFIG detector=" << detector << " massGeV=" << tauPrimeMass_
+                                     << " chargeMagnitude=" << tauPrimeCharge_ << " gasDensity=" << gasDensity
+                                     << " eionEV=" << eion << " eworkEV=" << ework;
+  }
   readCollisionTable();
 }
 
@@ -145,6 +158,20 @@ void CSCGasCollisions::readCollisionTable() {
 
 void CSCGasCollisions::setParticleDataTable(const ParticleDataTable *pdt) { theParticleDataTable = pdt; }
 
+bool CSCGasCollisions::isTauPrime(const PSimHit &hit) const {
+  return tauPrimeMass_ > 0. && std::abs(hit.particleType()) == 17;
+}
+
+void CSCGasCollisions::logTauPrimeHit(const PSimHit &hit, int total, int survivors, bool accepted,
+                                     const char *detector) {
+  if (tauPrimeValidate_ && tauPrimeLoggedHits_++ < 100)
+    edm::LogVerbatim("TauPrimeDigi") << "TAUPRIME_DIGI_HIT detector=" << detector << " pdg=" << hit.particleType()
+                                   << " massGeV=" << tauPrimeMass_ << " chargeMagnitude=" << tauPrimeCharge_
+                                   << " totalElectrons=" << total << " survivors=" << survivors
+                                   << " accepted=" << accepted << " detId=" << hit.detUnitId()
+                                   << " trackId=" << hit.trackId() << " tofNS=" << hit.tof();
+}
+
 void CSCGasCollisions::simulate(const PSimHit &simhit,
                                 std::vector<LocalPoint> &positions,
                                 std::vector<int> &electrons,
@@ -160,10 +187,13 @@ void CSCGasCollisions::simulate(const PSimHit &simhit,
   double mom = simhit.pabs();  // in GeV/c - see MuonSensitiveDetector.cc
   //  int iam       = simhit.particleType();           // PDG type
   delete theCrossGap;  // before building new one
-  assert(theParticleDataTable != nullptr);
-  ParticleData const *particle = theParticleDataTable->particle(simhit.particleType());
+  const bool tauPrime = isTauPrime(simhit);
+  assert(tauPrime || theParticleDataTable != nullptr);
+  ParticleData const *particle = tauPrime ? nullptr : theParticleDataTable->particle(simhit.particleType());
   double mass = 0.105658;  // assume a muon
-  if (particle == nullptr) {
+  if (tauPrime) {
+    mass = tauPrimeMass_;
+  } else if (particle == nullptr) {
     edm::LogError("CSCGasCollisions") << "Cannot find particle of type " << simhit.particleType() << " in the PDT";
   } else {
     mass = particle->mass();
@@ -191,7 +221,7 @@ void CSCGasCollisions::simulate(const PSimHit &simhit,
   // Extract collisions binned by energy loss values, for this gamma
   std::vector<float> collisions(N_ENERGY);
   double loggam = theCrossGap->logGamma();
-  fillCollisionsForThisGamma(static_cast<float>(loggam), collisions);
+  fillCollisionsForThisGamma(static_cast<float>(loggam), collisions, tauPrime);
 
   double anmin = exp(collisions[N_ENERGY - 1]);
   double anmax = exp(collisions[0]);
@@ -224,7 +254,7 @@ void CSCGasCollisions::simulate(const PSimHit &simhit,
                                        << " cm, sum_steps = " << sum_steps << " cm, n_steps = " << n_steps;
       break;
     }
-    step = generateStep(amu, engine);
+    step = generateStep(amu * (tauPrime ? tauPrimeCharge_ * tauPrimeCharge_ : 1.), engine);
     if (sum_steps + step > gapSize)
       break;  // this step goes too far
 
@@ -256,8 +286,12 @@ void CSCGasCollisions::simulate(const PSimHit &simhit,
 
     // Generate ionization.
     // eion is the minimum energy at which ionization can occur in the gas
+    // Keep the native ordinary-particle position algorithm unchanged.
+    if (tauPrime)
+      layerLocalPoint = simhit.entryPoint() + sum_steps * theCrossGap->unitVector();
     if (eloss > eion) {
-      layerLocalPoint += step * theCrossGap->unitVector();  // local point where the collision occurs
+      if (!tauPrime)
+        layerLocalPoint += step * theCrossGap->unitVector();  // local point where the collision occurs
       ionize(eloss, layerLocalPoint);
     } else {
       LogTrace(me) << "Energy available = " << eloss << " eV is too low for ionization (< eion = " << eion << " eV)";
@@ -547,7 +581,7 @@ float CSCGasCollisions::lnEnergyLoss(float lnCollisions, const std::vector<float
   return lnE;
 }
 
-void CSCGasCollisions::fillCollisionsForThisGamma(float logGamma, std::vector<float> &collisions) const {
+void CSCGasCollisions::fillCollisionsForThisGamma(float logGamma, std::vector<float> &collisions, bool tauPrime) const {
   std::vector<float>::const_iterator bigger =
       find_if(theGammaBins.begin(), theGammaBins.end(), [&logGamma](auto c) { return c > logGamma; });
 
@@ -555,8 +589,9 @@ void CSCGasCollisions::fillCollisionsForThisGamma(float logGamma, std::vector<fl
     // use highest bin
     LogTrace(me) << ": using highest gamma bin"
                  << " for logGamma = " << logGamma;
+    // Correct the exotic lookup while preserving the native ordinary-particle branch.
     for (int i = 0; i < N_ENERGY; ++i)
-      collisions[i] = theCollisionTable[i * N_GAMMA];
+      collisions[i] = theCollisionTable[i * N_GAMMA + (tauPrime ? N_GAMMA - 1 : 0)];
   } else {
     // use bigger and its lower neighbour
     std::vector<float>::difference_type ihi = bigger - theGammaBins.begin();

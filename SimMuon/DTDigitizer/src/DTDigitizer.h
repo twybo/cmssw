@@ -29,6 +29,7 @@
 #include "MagneticField/Engine/interface/MagneticField.h"
 #include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
 
+#include "SimMuon/CSCDigitizer/src/CSCGasCollisions.h"
 #include <memory>
 #include <vector>
 
@@ -107,6 +108,7 @@ private:
   friend class DTDigitizerAnalysis;
 
   // Its Atributes:
+  std::unique_ptr<CSCGasCollisions> tauPrimeGas_;
   double vPropWire;
   float deadTime;
   float smearing;

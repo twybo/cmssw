@@ -19,4 +19,5 @@
 <use name="SimDataFormats/TrackerDigiSimLink"/>
 <use name="SimDataFormats/TrackingHit"/>
 <use name="SimMuon/Neutron"/>
+<use name="SimMuon/CSCDigitizer"/>
 <flags EDM_PLUGIN="1"/>
