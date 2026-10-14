@@ -20,6 +20,7 @@
 
 #include <array>
 #include <cmath>
+#include <typeinfo>
 
 class TauPrimeValidation : public SimWatcher,
                            public Observer<const BeginOfRun*>,
@@ -43,6 +44,7 @@ public:
           << "TAUPRIME_DEFINITION pdg=" << particle->GetPDGEncoding()
           << " massGeV=" << particle->GetPDGMass() / CLHEP::GeV
           << " chargeInE=" << particle->GetPDGCharge() / CLHEP::eplus
+          << " particleType=" << particle->GetParticleType()
           << " twiceSpin=" << particle->GetPDGiSpin()
           << " lepton=" << particle->GetLeptonNumber() << " baryon=" << particle->GetBaryonNumber()
           << " stable=" << particle->GetPDGStable() << " antiPDG=" << particle->GetAntiPDGEncoding()
@@ -50,8 +52,9 @@ public:
           << " lifetime=" << particle->GetPDGLifeTime();
       if (std::abs(particle->GetPDGMass() / CLHEP::GeV - massGeV_) > 1.e-10 * massGeV_ ||
           std::abs(particle->GetPDGCharge() / CLHEP::eplus + sign * chargeMagnitude_) > 1.e-12 ||
-          particle->GetPDGiSpin() != 1 || particle->GetLeptonNumber() != sign ||
-          particle->GetBaryonNumber() != 0 || !particle->GetPDGStable() ||
+          particle->GetPDGiSpin() != 3 || particle->GetLeptonNumber() != 0 ||
+          particle->GetBaryonNumber() != 1 || particle->GetParticleType() != "sLepton" ||
+          !particle->GetPDGStable() ||
           particle->GetPDGWidth() != 0. || particle->GetPDGLifeTime() != -1. ||
           particle->GetAntiPDGEncoding() != -sign * 17) {
         throw cms::Exception("TauPrimeValidation") << "Incorrect particle properties for PDG " << sign * 17;
@@ -70,19 +73,20 @@ public:
         edm::LogVerbatim("TauPrimeValidation")
             << "TAUPRIME_PROCESS pdg=" << sign * 17 << " name=" << process->GetProcessName()
             << " type=" << process->GetProcessType() << " subtype=" << process->GetProcessSubType();
-        ionisation += dynamic_cast<const G4hIonisation*>(process) != nullptr;
-        scattering += dynamic_cast<const G4hMultipleScattering*>(process) != nullptr;
+        const bool isIonisation = typeid(*process) == typeid(G4hIonisation);
+        const bool isScattering = typeid(*process) == typeid(G4hMultipleScattering);
+        ionisation += isIonisation;
+        scattering += isScattering;
         transportation |= process->GetProcessType() == fTransportation;
         if (process->GetProcessType() == fElectromagnetic &&
-            !dynamic_cast<const G4hIonisation*>(process) &&
-            !dynamic_cast<const G4hMultipleScattering*>(process)) {
-          throw cms::Exception("TauPrimeValidation") << "Unexpected baseline electromagnetic process: "
+            !isIonisation && !isScattering) {
+          throw cms::Exception("TauPrimeValidation") << "Unexpected legacy-definition electromagnetic process: "
                                                      << process->GetProcessName();
         }
       }
       if (ionisation != 1 || scattering != 1 || !transportation) {
         throw cms::Exception("TauPrimeValidation")
-            << "Incorrect baseline process list for PDG " << sign * 17
+            << "Incorrect legacy-definition process list for PDG " << sign * 17
             << ": hIonisation=" << ionisation << " hMultipleScattering=" << scattering
             << " transportation=" << transportation;
       }

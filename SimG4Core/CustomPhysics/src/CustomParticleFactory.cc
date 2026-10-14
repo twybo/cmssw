@@ -50,8 +50,9 @@ void CustomParticleFactory::addTauPrime(double massGeV, double chargeMagnitude) 
       const int sign = existing->GetPDGEncoding() == 17 ? 1 : -1;
       if (std::abs(existing->GetPDGMass() / CLHEP::GeV - massGeV) > 1.e-10 * massGeV ||
           std::abs(existing->GetPDGCharge() / CLHEP::eplus + sign * chargeMagnitude) > 1.e-12 ||
-          existing->GetPDGiSpin() != 1 || existing->GetLeptonNumber() != sign ||
-          existing->GetBaryonNumber() != 0 || !existing->GetPDGStable() ||
+          existing->GetPDGiSpin() != 3 || existing->GetLeptonNumber() != 0 ||
+          existing->GetBaryonNumber() != 1 || existing->GetParticleType() != "sLepton" ||
+          !existing->GetPDGStable() ||
           existing->GetPDGWidth() != 0. || existing->GetPDGLifeTime() != -1. ||
           existing->GetAntiPDGEncoding() != -existing->GetPDGEncoding() ||
           std::find(m_particles.begin(), m_particles.end(), existing) == m_particles.end()) {
@@ -66,8 +67,8 @@ void CustomParticleFactory::addTauPrime(double massGeV, double chargeMagnitude) 
                                        massGeV * CLHEP::GeV,
                                        0.,
                                        -sign * chargeMagnitude * CLHEP::eplus,
-                                       1, +1, 0, 0, 0, 0,
-                                       "custom", sign, 0, sign * 17, true, -1., nullptr);
+                                       3, +1, 0, 0, 0, 0,
+                                       "sLepton", 0, 1, sign * 17, true, -1., nullptr);
     tauPrime->SetCloud(nullptr);
     tauPrime->SetSpectator(nullptr);
     tauPrime->SetAntiPDGEncoding(-sign * 17);
