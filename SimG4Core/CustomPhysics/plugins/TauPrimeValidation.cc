@@ -16,10 +16,13 @@
 #include "G4Track.hh"
 #include "G4hIonisation.hh"
 #include "G4hMultipleScattering.hh"
+#include "G4hBremsstrahlung.hh"
+#include "G4hPairProduction.hh"
 #include <CLHEP/Units/SystemOfUnits.h>
 
 #include <array>
 #include <cmath>
+#include <typeinfo>
 
 class TauPrimeValidation : public SimWatcher,
                            public Observer<const BeginOfRun*>,
@@ -43,6 +46,7 @@ public:
           << "TAUPRIME_DEFINITION pdg=" << particle->GetPDGEncoding()
           << " massGeV=" << particle->GetPDGMass() / CLHEP::GeV
           << " chargeInE=" << particle->GetPDGCharge() / CLHEP::eplus
+          << " particleType=" << particle->GetParticleType()
           << " twiceSpin=" << particle->GetPDGiSpin()
           << " lepton=" << particle->GetLeptonNumber() << " baryon=" << particle->GetBaryonNumber()
           << " stable=" << particle->GetPDGStable() << " antiPDG=" << particle->GetAntiPDGEncoding()
@@ -51,7 +55,7 @@ public:
       if (std::abs(particle->GetPDGMass() / CLHEP::GeV - massGeV_) > 1.e-10 * massGeV_ ||
           std::abs(particle->GetPDGCharge() / CLHEP::eplus + sign * chargeMagnitude_) > 1.e-12 ||
           particle->GetPDGiSpin() != 1 || particle->GetLeptonNumber() != sign ||
-          particle->GetBaryonNumber() != 0 || !particle->GetPDGStable() ||
+          particle->GetBaryonNumber() != 0 || particle->GetParticleType() != "custom" || !particle->GetPDGStable() ||
           particle->GetPDGWidth() != 0. || particle->GetPDGLifeTime() != -1. ||
           particle->GetAntiPDGEncoding() != -sign * 17) {
         throw cms::Exception("TauPrimeValidation") << "Incorrect particle properties for PDG " << sign * 17;
@@ -64,26 +68,33 @@ public:
       const auto* processes = manager->GetProcessList();
       int ionisation = 0;
       int scattering = 0;
+      int bremsstrahlung = 0;
+      int pairProduction = 0;
       bool transportation = false;
       for (int index = 0; index < manager->GetProcessListLength(); ++index) {
         const auto* process = (*processes)[index];
         edm::LogVerbatim("TauPrimeValidation")
             << "TAUPRIME_PROCESS pdg=" << sign * 17 << " name=" << process->GetProcessName()
             << " type=" << process->GetProcessType() << " subtype=" << process->GetProcessSubType();
-        ionisation += dynamic_cast<const G4hIonisation*>(process) != nullptr;
-        scattering += dynamic_cast<const G4hMultipleScattering*>(process) != nullptr;
+        ionisation += typeid(*process) == typeid(G4hIonisation);
+        scattering += typeid(*process) == typeid(G4hMultipleScattering);
+        bremsstrahlung += typeid(*process) == typeid(G4hBremsstrahlung);
+        pairProduction += typeid(*process) == typeid(G4hPairProduction);
         transportation |= process->GetProcessType() == fTransportation;
         if (process->GetProcessType() == fElectromagnetic &&
-            !dynamic_cast<const G4hIonisation*>(process) &&
-            !dynamic_cast<const G4hMultipleScattering*>(process)) {
-          throw cms::Exception("TauPrimeValidation") << "Unexpected baseline electromagnetic process: "
+            typeid(*process) != typeid(G4hIonisation) &&
+            typeid(*process) != typeid(G4hMultipleScattering) &&
+            typeid(*process) != typeid(G4hBremsstrahlung) &&
+            typeid(*process) != typeid(G4hPairProduction)) {
+          throw cms::Exception("TauPrimeValidation") << "Unexpected radiative electromagnetic process: "
                                                      << process->GetProcessName();
         }
       }
-      if (ionisation != 1 || scattering != 1 || !transportation) {
+      if (ionisation != 1 || scattering != 1 || bremsstrahlung != 1 || pairProduction != 1 || !transportation) {
         throw cms::Exception("TauPrimeValidation")
-            << "Incorrect baseline process list for PDG " << sign * 17
+            << "Incorrect radiative process list for PDG " << sign * 17
             << ": hIonisation=" << ionisation << " hMultipleScattering=" << scattering
+            << " hBremsstrahlung=" << bremsstrahlung << " hPairProduction=" << pairProduction
             << " transportation=" << transportation;
       }
     }

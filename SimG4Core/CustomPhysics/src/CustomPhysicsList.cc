@@ -1,4 +1,5 @@
 #include <memory>
+#include <cstdlib>
 
 #include "SimG4Core/CustomPhysics/interface/CustomPhysicsList.h"
 #include "SimG4Core/CustomPhysics/interface/CustomParticleFactory.h"
@@ -23,6 +24,8 @@
 
 #include "G4hMultipleScattering.hh"
 #include "G4hIonisation.hh"
+#include "G4hBremsstrahlung.hh"
+#include "G4hPairProduction.hh"
 #include "G4ProcessManager.hh"
 #include "G4HadronicProcess.hh"
 #include "G4AutoDelete.hh"
@@ -88,6 +91,10 @@ void CustomPhysicsList::ConstructProcess() {
         if (particle->GetPDGCharge() != 0.0) {
           ph->RegisterProcess(new G4hMultipleScattering, particle);
           ph->RegisterProcess(new G4hIonisation, particle);
+          if (myConfig.existsAs<double>("TauPrimeMassGeV") && std::abs(particle->GetPDGEncoding()) == 17) {
+            ph->RegisterProcess(new G4hBremsstrahlung, particle);
+            ph->RegisterProcess(new G4hPairProduction, particle);
+          }
         }
         if (cp->GetCloud() && fHadronicInteraction &&
             (CustomPDGParser::s_isgluinoHadron(particle->GetPDGEncoding()) ||
