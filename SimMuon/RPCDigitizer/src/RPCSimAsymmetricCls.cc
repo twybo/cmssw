@@ -155,8 +155,11 @@ void RPCSimAsymmetricCls::simulate(const RPCRoll* roll,
       std::vector<int> electrons;
       tauPrimeGas_->simulate(*_hit, positions, electrons, engine);
       int total = std::accumulate(electrons.begin(), electrons.end(), 0);
-      tauPrimeGas_->logTauPrimeHit(*_hit, total, total, total >= 4, "RPC");
-      if (total < 4)
+      const int clusters = electrons.size();
+      const int gateUnits = tauPrimeGas_->countingMode() == "clusters" ? clusters : total;
+      tauPrimeGas_->logTauPrimeHit(*_hit, total, total, gateUnits >= 4, "RPC", clusters, clusters,
+                                  tauPrimeGas_->countingMode().c_str());
+      if (gateUnits < 4)
         continue;
     }
     // Here I hould check if the RPC are up side down;

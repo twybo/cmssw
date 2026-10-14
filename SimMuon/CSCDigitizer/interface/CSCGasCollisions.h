@@ -38,7 +38,9 @@ public:
                 CLHEP::HepRandomEngine *);
 
   bool isTauPrime(const PSimHit &hit) const;
-  void logTauPrimeHit(const PSimHit &, int total, int survivors, bool accepted, const char *detector);
+  void logTauPrimeHit(const PSimHit &, int total, int survivors, bool accepted, const char *detector,
+                      int clusters, int survivingClusters, const char *countingMode = "electrons");
+  const std::string &countingMode() const { return tauPrimeCountingMode_; }
 
   bool dumpGasCollisions(void) const { return dumpGasCollisions_; }
   bool saveGasCollisions(void) const { return saveGasCollisions_; }
@@ -67,7 +69,12 @@ private:
   double tauPrimeMass_ = 0.;
   double tauPrimeCharge_ = 1.;
   bool tauPrimeValidate_ = false;
-  unsigned int tauPrimeLoggedHits_ = 0;
+  unsigned int tauPrimeSamplingLimit_ = MAX_STEPS;
+  std::string tauPrimeCountingMode_ = "electrons";
+  int samplingAttempts_ = 0;
+  int samplingSteps_ = 0;
+  bool samplingTruncated_ = false;
+  bool samplingShortHit_ = false;
   const std::string me;  // class name
   double gasDensity;     // Density of CSC gas mix
   // The question of what is reasonable for deCut is complex. But it seems clear
