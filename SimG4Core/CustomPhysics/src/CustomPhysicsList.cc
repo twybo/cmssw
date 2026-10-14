@@ -1,3 +1,4 @@
+#include <cmath>
 #include <memory>
 
 #include "SimG4Core/CustomPhysics/interface/CustomPhysicsList.h"
@@ -23,6 +24,8 @@
 
 #include "G4hMultipleScattering.hh"
 #include "G4hIonisation.hh"
+#include "G4MuMultipleScattering.hh"
+#include "G4MuIonisation.hh"
 #include "G4ProcessManager.hh"
 #include "G4HadronicProcess.hh"
 #include "G4AutoDelete.hh"
@@ -86,8 +89,13 @@ void CustomPhysicsList::ConstructProcess() {
           << "  Mass= " << particle->GetPDGMass() / GeV << " GeV.";
       if (pmanager) {
         if (particle->GetPDGCharge() != 0.0) {
-          ph->RegisterProcess(new G4hMultipleScattering, particle);
-          ph->RegisterProcess(new G4hIonisation, particle);
+          if (std::abs(particle->GetPDGEncoding()) == 17) {
+            ph->RegisterProcess(new G4MuMultipleScattering, particle);
+            ph->RegisterProcess(new G4MuIonisation, particle);
+          } else {
+            ph->RegisterProcess(new G4hMultipleScattering, particle);
+            ph->RegisterProcess(new G4hIonisation, particle);
+          }
         }
         if (cp->GetCloud() && fHadronicInteraction &&
             (CustomPDGParser::s_isgluinoHadron(particle->GetPDGEncoding()) ||
