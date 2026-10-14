@@ -5,6 +5,7 @@
 
 // system include files
 #include <memory>
+#include "SimMuon/CSCDigitizer/interface/TauPrimeCounting.h"
 
 // C++ headers
 #include <cmath>
@@ -195,16 +196,14 @@ void DTDigitizer::produce(Event &iEvent, const EventSetup &iSetup) {
           std::vector<LocalPoint> positions;
           std::vector<int> electrons;
           tauPrimeGas_->simulate(**hit, positions, electrons, engine);
-          int total = 0;
-          int survivors = 0;
-          for (int count : electrons) {
-            total += count;
-            for (int i = 0; i < count; ++i)
-              if (CLHEP::RandFlat::shoot(engine) < 0.667)
-                ++survivors;
-          }
-          tauPrimeGas_->logTauPrimeHit(**hit, total, survivors, survivors >= 4, "DT");
-          if (survivors < 4)
+          const bool clusterMode = tauPrimeGas_->countingMode() == "clusters";
+          const auto counts = tauprime::countSurvivors(electrons, clusterMode,
+                                                     [engine]() { return CLHEP::RandFlat::shoot(engine); });
+          const int survivingUnits = clusterMode ? counts.survivingClusters : counts.survivingElectrons;
+          tauPrimeGas_->logTauPrimeHit(**hit, counts.electrons, counts.survivingElectrons, survivingUnits >= 4,
+                                      "DT", counts.clusters, counts.survivingClusters,
+                                      tauPrimeGas_->countingMode().c_str());
+          if (survivingUnits < 4)
             continue;
         }
         //************ 5 ***************

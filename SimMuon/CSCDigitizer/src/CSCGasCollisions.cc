@@ -86,6 +86,16 @@ CSCGasCollisions::CSCGasCollisions(const edm::ParameterSet &pset, double density
     tauPrimeMass_ = pset.getParameter<double>("TauPrimeMassGeV");
     tauPrimeCharge_ = pset.getParameter<double>("TauPrimeChargeMagnitude");
     tauPrimeValidate_ = pset.getParameter<bool>("TauPrimeDigiValidation");
+    if (pset.existsAs<unsigned int>("TauPrimeExoticSamplingLimit"))
+      tauPrimeSamplingLimit_ = pset.getParameter<unsigned int>("TauPrimeExoticSamplingLimit");
+    if (tauPrimeSamplingLimit_ != 400 && tauPrimeSamplingLimit_ != 1600 &&
+        tauPrimeSamplingLimit_ != 6400 && tauPrimeSamplingLimit_ != 25600)
+      throw cms::Exception("Configuration") << "Invalid tau-prime exotic sampling limit";
+    const std::string modeParameter = std::string("TauPrime") + detector + "CountingMode";
+    if (pset.existsAs<std::string>(modeParameter))
+      tauPrimeCountingMode_ = pset.getParameter<std::string>(modeParameter);
+    if (tauPrimeCountingMode_ != "electrons" && tauPrimeCountingMode_ != "clusters")
+      throw cms::Exception("Configuration") << "Invalid tau-prime counting mode";
     if (!(std::isfinite(tauPrimeMass_) && tauPrimeMass_ > 0. && std::isfinite(tauPrimeCharge_) &&
           tauPrimeCharge_ > 0. && std::isfinite(tauPrimeCharge_ * tauPrimeCharge_) &&
           tauPrimeCharge_ * tauPrimeCharge_ > 0.))
@@ -93,6 +103,7 @@ CSCGasCollisions::CSCGasCollisions(const edm::ParameterSet &pset, double density
     if (tauPrimeValidate_)
       edm::LogVerbatim("TauPrimeDigi") << "TAUPRIME_DIGI_CONFIG detector=" << detector << " massGeV=" << tauPrimeMass_
                                      << " chargeMagnitude=" << tauPrimeCharge_ << " gasDensity=" << gasDensity
+                                     << " samplingLimit=" << tauPrimeSamplingLimit_ << " countingMode=" << tauPrimeCountingMode_
                                      << " eionEV=" << eion << " eworkEV=" << ework;
   }
   readCollisionTable();
@@ -164,11 +175,18 @@ bool CSCGasCollisions::isTauPrime(const PSimHit &hit) const {
 }
 
 void CSCGasCollisions::logTauPrimeHit(const PSimHit &hit, int total, int survivors, bool accepted,
-                                     const char *detector) {
-  if (tauPrimeValidate_ && tauPrimeLoggedHits_++ < 100)
+                                     const char *detector, int clusters, int survivingClusters, const char *countingMode) {
+  if (tauPrimeValidate_)
     edm::LogVerbatim("TauPrimeDigi") << "TAUPRIME_DIGI_HIT detector=" << detector << " pdg=" << hit.particleType()
                                    << " massGeV=" << tauPrimeMass_ << " chargeMagnitude=" << tauPrimeCharge_
                                    << " totalElectrons=" << total << " survivors=" << survivors
+                                   << " clusters=" << clusters << " survivingClusters=" << survivingClusters
+                                   << " countingMode=" << countingMode << " threshold=4"
+                                   << " samplingAttempts=" << samplingAttempts_ << " samplingSteps=" << samplingSteps_
+                                   << " samplingLimit=" << tauPrimeSamplingLimit_
+                                   << " samplerTruncated=" << samplingTruncated_ << " shortHit=" << samplingShortHit_
+                                   << " gateAccepted=" << accepted << " finalResponse=unmeasured"
+                                   << " eventRawId=" << hit.eventId().rawId()
                                    << " accepted=" << accepted << " detId=" << hit.detUnitId()
                                    << " trackId=" << hit.trackId() << " tofNS=" << hit.tof();
 }
@@ -177,6 +195,8 @@ void CSCGasCollisions::simulate(const PSimHit &simhit,
                                 std::vector<LocalPoint> &positions,
                                 std::vector<int> &electrons,
                                 CLHEP::HepRandomEngine *engine) {
+  samplingAttempts_ = samplingSteps_ = 0;
+  samplingTruncated_ = samplingShortHit_ = false;
   const float epsilonL = 0.01;  // Shortness of simhit 'length'
   //  const float max_gap_z = 1.5;                     // Gas gaps are 0.5
   //  or 1.0 cm
@@ -189,6 +209,10 @@ void CSCGasCollisions::simulate(const PSimHit &simhit,
   //  int iam       = simhit.particleType();           // PDG type
   delete theCrossGap;  // before building new one
   const bool tauPrime = isTauPrime(simhit);
+  if (tauPrime) {
+    positions.clear();
+    electrons.clear();
+  }
   assert(tauPrime || theParticleDataTable != nullptr);
   ParticleData const *particle = tauPrime ? nullptr : theParticleDataTable->particle(simhit.particleType());
   double mass = 0.105658;  // assume a muon
@@ -215,6 +239,7 @@ void CSCGasCollisions::simulate(const PSimHit &simhit,
                                      << " : momentum = " << simhit.pabs()
                                      << " GeV/c : energy loss = " << simhit.energyLoss() * 1.E06 << " keV"
                                      << ", gapSize = " << gapSize << " cm (< epsilonL = " << epsilonL << " cm)";
+    samplingShortHit_ = tauPrime;
     return;  //@@ Just skip this PSimHit
   }
 
@@ -241,10 +266,12 @@ void CSCGasCollisions::simulate(const PSimHit &simhit,
   LocalPoint layerLocalPoint(simhit.entryPoint());
 
   // step/primary collision loop
+  const int maxSteps = tauPrime ? static_cast<int>(tauPrimeSamplingLimit_) : MAX_STEPS;
   while (sum_steps < gapSize) {
     ++n_try;
-    if (n_try > MAX_STEPS) {
-      int maxst = MAX_STEPS;
+    if (n_try > maxSteps) {
+      samplingTruncated_ = tauPrime;
+      int maxst = maxSteps;
       edm::LogVerbatim("CSCDigitizer") << "[CSCGasCollisions] WARNING! n_try = " << n_try
                                        << " is > MAX_STEPS = " << maxst << " - skipping simhit:"
                                        << "\n entry = " << simhit.entryPoint() << ": exit  = " << simhit.exitPoint()
@@ -272,7 +299,8 @@ void CSCGasCollisions::simulate(const PSimHit &simhit,
     sum_steps += step;  // the position of the ionizing particle
     ++n_steps;          // the number of primary collisions
 
-    if (n_steps > MAX_STEPS) {  // Extra-careful trap for bizarreness
+    if (n_steps > maxSteps) {  // Extra-careful trap for bizarreness
+      samplingTruncated_ = tauPrime;
       edm::LogVerbatim("CSCDigitizer") << "[CSCGasCollisions] WARNING! " << n_steps
                                        << " is too many steps -  skipping simhit:"
                                        << "\n entry = " << simhit.entryPoint() << ": exit  = " << simhit.exitPoint()
@@ -300,6 +328,8 @@ void CSCGasCollisions::simulate(const PSimHit &simhit,
 
   }  // step/collision loop
 
+  samplingAttempts_ = std::min(n_try, maxSteps);
+  samplingSteps_ = n_steps;
   if (dumpGasCollisions())
     writeSummary(n_try, n_steps, sum_steps, dedx, simhit);
 

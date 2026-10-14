@@ -107,6 +107,44 @@ public:
       }
       require(rejected, "invalid charge accepted");
     }
+    for (unsigned int limit : {400u, 1600u, 6400u, 25600u}) {
+      auto settings = config(100., 2.);
+      settings.addParameter<unsigned int>("TauPrimeExoticSamplingLimit", limit);
+      CSCGasCollisions limited(settings);
+      const PSimHit longHit(LocalPoint(0., 0., 0.), LocalPoint(0., 0., 100000.),
+                            100., 0., 0.000005, 17, 1, 1, 0., 0., 0);
+      CLHEP::HepJamesRandom engine(987);
+      limited.simulate(longHit, positions, electrons, &engine);
+      require(limited.samplingTruncated_, "long hit did not reach sampling limit");
+      require(limited.samplingAttempts_ == static_cast<int>(limit), "sampling attempt limit not respected");
+      const PSimHit shortHit(LocalPoint(0., 0., 0.), LocalPoint(0., 0., 0.001),
+                             100., 0., 0.000005, 17, 1, 1, 0., 0., 0);
+      positions.clear();
+      electrons.clear();
+      limited.simulate(shortHit, positions, electrons, &engine);
+      require(limited.samplingAttempts_ == 0 && limited.samplingShortHit_ && !limited.samplingTruncated_,
+              "early-return diagnostics not reset");
+    }
+    for (unsigned int limit : {0u, 401u, 25601u}) {
+      auto settings = config(100., 1.);
+      settings.addParameter<unsigned int>("TauPrimeExoticSamplingLimit", limit);
+      bool rejected = false;
+      try {
+        CSCGasCollisions invalid(settings);
+      } catch (const cms::Exception &) {
+        rejected = true;
+      }
+      require(rejected, "invalid sampling limit accepted");
+    }
+    auto invalidMode = config(100., 1.);
+    invalidMode.addParameter<std::string>("TauPrimeDTCountingMode", "invalid");
+    bool modeRejected = false;
+    try {
+      CSCGasCollisions invalid(invalidMode, 0.00169, 15.49, "DT");
+    } catch (const cms::Exception &) {
+      modeRejected = true;
+    }
+    require(modeRejected, "invalid DT counting mode accepted");
     std::cout << "TauPrimeGasCollisionsTest passed" << std::endl;
   }
 };

@@ -57,8 +57,10 @@ std::vector<LocalPoint> CSCWireHitSim::getIonizationClusters(const PSimHit &simH
   std::vector<LocalPoint> results;  // start empty
 
   int j = 0;
+  int survivingClusters = 0;
   for (std::vector<LocalPoint>::const_iterator pointItr = positions.begin(); pointItr != positions.end(); ++pointItr) {
     ++j;
+    const size_t previousSurvivors = results.size();
     // some verification
     if (layer->geometry()->inside(*pointItr)) {
       // push the point for each electron at this point
@@ -71,10 +73,11 @@ std::vector<LocalPoint> CSCWireHitSim::getIonizationClusters(const PSimHit &simH
         }
       }
     }
+    survivingClusters += results.size() > previousSurvivors;
   }
   if (theGasIonizer->isTauPrime(simHit))
     theGasIonizer->logTauPrimeHit(simHit, std::accumulate(electrons.begin(), electrons.end(), 0),
-                                results.size(), results.size() >= 4, "CSC");
+                                results.size(), results.size() >= 4, "CSC", positions.size(), survivingClusters);
   LogTrace("CSCWireHitSim") << "CSCWireHitSim: there are " << results.size()
                             << " clusters identified with each electron.";
   return results;

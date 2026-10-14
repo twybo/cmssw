@@ -4,7 +4,12 @@ import FWCore.ParameterSet.Config as cms
 
 
 def customiseTauPrimeDigi(process: cms.Process, massGeV: float, chargeMagnitude: float,
-                         validate: bool = True) -> cms.Process:
+                         validate: bool = True, dtCountingMode: str = "electrons",
+                         rpcCountingMode: str = "electrons", exoticSamplingLimit: int = 400) -> cms.Process:
+    if dtCountingMode not in {"electrons", "clusters"} or rpcCountingMode not in {"electrons", "clusters"}:
+        raise ValueError("Tau-prime counting modes must be electrons or clusters")
+    if type(exoticSamplingLimit) is not int or exoticSamplingLimit not in {400, 1600, 6400, 25600}:
+        raise ValueError("Tau-prime sampling limit must be 400, 1600, 6400 or 25600")
     charge_squared = chargeMagnitude * chargeMagnitude
     if any(not isfinite(value) or value <= 0
            for value in (massGeV, chargeMagnitude, charge_squared)):
@@ -28,6 +33,9 @@ def customiseTauPrimeDigi(process: cms.Process, massGeV: float, chargeMagnitude:
         parameters.TauPrimeMassGeV = cms.double(massGeV)
         parameters.TauPrimeChargeMagnitude = cms.double(chargeMagnitude)
         parameters.TauPrimeDigiValidation = cms.bool(validate)
+        parameters.TauPrimeExoticSamplingLimit = cms.uint32(exoticSamplingLimit)
+    process.simMuonDTDigis.TauPrimeDTCountingMode = cms.string(dtCountingMode)
+    process.simMuonRPCDigis.digiModelConfig.TauPrimeRPCCountingMode = cms.string(rpcCountingMode)
     return process
 
 
