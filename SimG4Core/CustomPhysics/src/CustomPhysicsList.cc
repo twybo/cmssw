@@ -7,6 +7,7 @@
 #include "SimG4Core/CustomPhysics/interface/DummyChargeFlipProcess.h"
 #include "SimG4Core/CustomPhysics/interface/CustomProcessHelper.h"
 #include "SimG4Core/CustomPhysics/interface/CustomPDGParser.h"
+#include "SimG4Core/CustomPhysics/interface/TauPrimePairProductionModel.h"
 
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
@@ -93,7 +94,9 @@ void CustomPhysicsList::ConstructProcess() {
           ph->RegisterProcess(new G4hIonisation, particle);
           if (myConfig.existsAs<double>("TauPrimeMassGeV") && std::abs(particle->GetPDGEncoding()) == 17) {
             ph->RegisterProcess(new G4hBremsstrahlung, particle);
-            ph->RegisterProcess(new G4hPairProduction, particle);
+            auto* pairProduction = new G4hPairProduction;
+            pairProduction->SetEmModel(new TauPrimePairProductionModel(particle));
+            ph->RegisterProcess(pairProduction, particle);
           }
         }
         if (cp->GetCloud() && fHadronicInteraction &&
