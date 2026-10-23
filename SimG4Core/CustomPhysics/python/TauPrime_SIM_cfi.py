@@ -25,11 +25,10 @@ def customiseTauPrime(
         if hasattr(physics, "TauPrimeStandardPhysicsType")
         else physics.type.value()
     )
-    if standard_type not in {
-        "SimG4Core/Physics/FTFP_BERT_EMH",
-        "SimG4Core/Physics/FTFP_BERT_EMM",
-    }:
-        raise ValueError(f"Unsupported ordinary-particle physics list: {standard_type}")
+    if standard_type != "SimG4Core/Physics/FTFP_BERT_EMM":
+        raise ValueError(
+            f"Tau-prime requires FTFP_BERT_EMM; got {standard_type}"
+        )
 
     if hasattr(process, "generator"):
         parameters = process.generator.PythiaParameters.processParameters
