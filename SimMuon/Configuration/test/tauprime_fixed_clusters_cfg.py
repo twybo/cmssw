@@ -1,4 +1,4 @@
-from SimG4Core.CustomPhysics.TauPrimeUnified_cff import make_process
+from SimMuon.Configuration.tauPrimeProcess import make_process
 
 # Edit the run settings here.
 process = make_process(

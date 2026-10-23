@@ -7,15 +7,14 @@ def customiseTauPrime(
     process: cms.Process,
     massGeV: float,
     chargeMagnitude: float,
-    mHatMinGeV: float = 200.0,
     validate: bool = True,
 ) -> cms.Process:
     if any(
         not isfinite(value) or value <= 0
-        for value in (massGeV, chargeMagnitude, mHatMinGeV)
+        for value in (massGeV, chargeMagnitude)
     ):
         raise ValueError(
-            "Tau-prime mass, charge magnitude and mHatMin must be finite and positive"
+            "Tau-prime mass and charge magnitude must be finite and positive"
         )
     if not hasattr(process, "g4SimHits"):
         raise ValueError("Tau-prime customization requires the SIM step (g4SimHits)")
@@ -28,20 +27,6 @@ def customiseTauPrime(
     if standard_type != "SimG4Core/Physics/FTFP_BERT_EMM":
         raise ValueError(
             f"Tau-prime requires FTFP_BERT_EMM; got {standard_type}"
-        )
-
-    if hasattr(process, "generator"):
-        parameters = process.generator.PythiaParameters.processParameters
-        keys = {"17:m0", "17:chargeType", "17:mayDecay", "PhaseSpace:mHatMin"}
-        retained = [
-            line for line in parameters if line.split("=", 1)[0].strip() not in keys
-        ]
-        process.generator.PythiaParameters.processParameters = cms.vstring(
-            *retained,
-            f"17:m0 = {massGeV:.17g}",
-            "17:chargeType = -3",
-            "17:mayDecay = off",
-            f"PhaseSpace:mHatMin = {mHatMinGeV:.17g}",
         )
 
     process.load("SimG4Core.CustomPhysics.CustomPhysics_cfi")

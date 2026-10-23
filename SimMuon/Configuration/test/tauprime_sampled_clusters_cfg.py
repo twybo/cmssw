@@ -1,9 +1,9 @@
-from SimG4Core.CustomPhysics.TauPrimeUnified_cff import make_process
+from SimMuon.Configuration.tauPrimeProcess import make_process
 
 # Edit the run settings here.
 process = make_process(
     massMode="sampled",
-    counting="electrons",
+    counting="clusters",
     mass=1000.0,  # Nominal mass in GeV; mHatMin is max(50 GeV, mass).
     charge=1.0,  # Transport charge magnitude in units of e.
     maxEvents=10,
