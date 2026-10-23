@@ -25,7 +25,9 @@ def customise(process: cms.Process, mass: float = 1000.0, charge: float = 1.0,
                                 exoticSamplingLimit=400)
 
 
-def make_process(massMode: str = "fixed", counting: str = "clusters") -> cms.Process:
+def make_process(massMode: str = "fixed", counting: str = "clusters", *,
+                 mass: float = 1000.0, charge: float = 1.0, maxEvents: int = 10,
+                 seed: int = 12345, outputFile: str = "output.root") -> cms.Process:
     import runpy
     import subprocess
     import tempfile
@@ -33,11 +35,11 @@ def make_process(massMode: str = "fixed", counting: str = "clusters") -> cms.Pro
     from FWCore.ParameterSet.VarParsing import VarParsing
 
     options = VarParsing("analysis")
-    options.register("mass", 1000.0, options.multiplicity.singleton, options.varType.float, "Nominal mass in GeV")
-    options.register("charge", 1.0, options.multiplicity.singleton, options.varType.float, "Transport charge magnitude in e")
-    options.register("seed", 12345, options.multiplicity.singleton, options.varType.int, "Base random seed")
-    options.maxEvents = 10
-    options.outputFile = "output.root"
+    options.register("mass", mass, options.multiplicity.singleton, options.varType.float, "Nominal mass in GeV")
+    options.register("charge", charge, options.multiplicity.singleton, options.varType.float, "Transport charge magnitude in e")
+    options.register("seed", seed, options.multiplicity.singleton, options.varType.int, "Base random seed")
+    options.maxEvents = maxEvents
+    options.outputFile = outputFile
     options.parseArguments()
     if options.maxEvents <= 0 or not 1 <= options.seed <= 900000000 - 1000:
         raise ValueError("Positive event count and base seed in [1, 899999000] required")
