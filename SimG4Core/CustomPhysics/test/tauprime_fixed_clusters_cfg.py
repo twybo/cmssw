@@ -1,6 +1,6 @@
 from SimG4Core.CustomPhysics.TauPrimeUnified_cff import make_process
 
-# Edit these values here; optional command-line arguments override them.
+# Edit the run settings here.
 process = make_process(
     massMode="fixed",
     counting="clusters",

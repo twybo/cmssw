@@ -32,17 +32,11 @@ def make_process(massMode: str = "fixed", counting: str = "clusters", *,
     import subprocess
     import tempfile
     from pathlib import Path
-    from FWCore.ParameterSet.VarParsing import VarParsing
 
-    options = VarParsing("analysis")
-    options.register("mass", mass, options.multiplicity.singleton, options.varType.float, "Nominal mass in GeV")
-    options.register("charge", charge, options.multiplicity.singleton, options.varType.float, "Transport charge magnitude in e")
-    options.register("seed", seed, options.multiplicity.singleton, options.varType.int, "Base random seed")
-    options.maxEvents = maxEvents
-    options.outputFile = outputFile
-    options.parseArguments()
-    if options.maxEvents <= 0 or not 1 <= options.seed <= 900000000 - 1000:
-        raise ValueError("Positive event count and base seed in [1, 899999000] required")
+    if type(maxEvents) is not int or maxEvents <= 0:
+        raise ValueError("Event count must be a positive integer")
+    if type(seed) is not int or not 1 <= seed <= 899999000:
+        raise ValueError("Base random seed must be an integer in [1, 899999000]")
     with tempfile.TemporaryDirectory(prefix="tauprime-config-") as directory:
         config = str(Path(directory) / "generated.py")
         subprocess.run([
@@ -51,14 +45,14 @@ def make_process(massMode: str = "fixed", counting: str = "clusters", *,
             "--geometry", "DB:Extended", "--step", "GEN,SIM,DIGI:pdigi_valid",
             "--beamspot", "DBrealistic", "--pileup", "NoPileUp", "--nThreads", "1", "--nStreams", "1",
             "--eventcontent", "FEVTDEBUG", "--datatier", "GEN-SIM-DIGI", "--processName", "TAUPRIME",
-            "--number", str(options.maxEvents), "--fileout", "file:" + options.outputFile.removeprefix("file:"),
+            "--number", str(maxEvents), "--fileout", "file:" + outputFile.removeprefix("file:"),
             "--python_filename", config, "--no_exec"], check=True)
         process = runpy.run_path(config)["process"]
-    process = customise(process, options.mass, options.charge, massMode, counting)
+    process = customise(process, mass, charge, massMode, counting)
     for index, name in enumerate(sorted(process.RandomNumberGeneratorService.parameterNames_())):
         pset = getattr(process.RandomNumberGeneratorService, name)
         if isinstance(pset, cms.PSet) and hasattr(pset, "initialSeed"):
-            pset.initialSeed = cms.untracked.uint32(options.seed + index)
+            pset.initialSeed = cms.untracked.uint32(seed + index)
     process.MessageLogger.cerr.INFO.limit = cms.untracked.int32(-1)
     process.MessageLogger.cerr.default.limit = cms.untracked.int32(0)
     for category in ("TauPrimeValidation", "TauPrimeDigi", "SimG4CoreApplication"):
