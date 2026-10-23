@@ -20,7 +20,6 @@ using CLHEP::ns;
 CustomPhysics::CustomPhysics(const edm::ParameterSet& p) : PhysicsList(p) {
   int ver = p.getUntrackedParameter<int>("Verbosity", 0);
   if (p.existsAs<double>("TauPrimeMassGeV")) {
-    // Preserve the target FTFPCMS_BERT_EMM constructor, including its EMH type dispatch.
     auto standard = p;
     standard.addParameter<std::string>("type", p.getParameter<std::string>("TauPrimeStandardPhysicsType"));
     const bool emPhys = p.getUntrackedParameter<bool>("EMPhysics", true);
