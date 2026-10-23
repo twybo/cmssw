@@ -74,7 +74,7 @@ def make_process(
                 "Configuration/GenProduction/python/ZprimeToECPs_fragment_cff.py",
                 "--mc",
                 "--conditions",
-                "150X_mcRun3_2024_realistic_v3",
+                "auto:phase1_2024_realistic",
                 "--era",
                 "Run3_2024",
                 "--geometry",
